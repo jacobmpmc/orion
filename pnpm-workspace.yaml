@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# Only install package versions that have been published for at least 1 week
+# (10080 minutes). Guards against compromised/yanked fresh releases.
+minimumReleaseAge: 10080
+
+# Exceptions to minimumReleaseAge can be listed here, e.g.:
+# minimumReleaseAgeExclude:
+#   - "@myorg/*"
