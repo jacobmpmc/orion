@@ -12,13 +12,18 @@ maintained alongside the CLI.
 A plugin declares exactly one role, so a CI/CD pipeline installs only the code
 it needs and never pulls in viewer rendering just to upload a report.
 
-| Role       | Implements               | Used by     |
-| ---------- | ------------------------ | ----------- |
-| `reporter` | `generate(context)`      | `orion generate` |
-| `storage`  | `store(context)`         | `orion generate`, viewer |
-| `viewer`   | rendering (not yet used) | viewer app  |
+| Role       | Implements                     | Used by     |
+| ---------- | ------------------------------ | ----------- |
+| `reporter` | `generate(context)`            | `orion generate` |
+| `storage`  | `store(context)` / `fetch(context)` | `orion generate` writes, the viewer reads |
+| `viewer`   | `reports` + `bundle`, and a browser `mount()` | the viewer app |
 
 Every plugin also implements `parseOptions`, whatever its role.
+
+A storage plugin's two methods are **independent and both optional**. Each host
+requires only the one it uses, so a write-only backend (an artifact uploader) or
+a read-only one (a mirror somebody else fills) is perfectly valid — it is simply
+rejected by the host that needs the other capability.
 
 ## Naming
 
@@ -69,9 +74,54 @@ const plugin: ReporterPlugin<PulumiDiffOptions> = {
 export default plugin;
 ```
 
-The loader checks `kind`, `parseOptions` and the role's method at runtime, so a
-mistyped or mismatched package fails with a clear error rather than a stack
-trace.
+The loader checks `kind`, `parseOptions` and whichever methods the host needs at
+runtime, so a mistyped or mismatched package fails with a clear error rather
+than a stack trace.
+
+## Writing a viewer plugin
+
+A viewer plugin is the odd one out: the host never calls it. Rendering happens
+in a browser, so the plugin object only declares *what* it renders and *where*
+its browser bundle is, and the server serves that file's bytes without ever
+evaluating them.
+
+```ts
+import { ok } from "@orion/core";
+import type { ViewerPlugin } from "@orion/core";
+
+const plugin: ViewerPlugin = {
+  kind: "viewer",
+  name: "pulumi-diff",
+  reports: ["pulumi-diff"],   // Report.kind values this renders — the dispatch key
+  bundle: new URL("./browser/index.js", import.meta.url).href,
+  parseOptions: () => ok({}),
+};
+
+export default plugin;
+```
+
+That means two builds: the Node entry the viewer imports (`dist/`), and the
+browser bundle it points at (`dist/browser/`). The bundle's only required export
+is `mount`:
+
+```ts
+// dist/browser/index.js
+export function mount(element, { report, source }) {
+  // `source` is { connection, id } for a stored report, absent for a dropped one.
+  const view = render(report);
+  element.append(view);
+  return () => view.remove();      // the unmount, called before the next render
+}
+```
+
+The contract is DOM-only on purpose: use any framework you like internally
+without having to match the host app's version of it. Return the unmount
+synchronously or as a promise; the host calls it before mounting anything else,
+and tolerates it throwing.
+
+Bundle everything the view needs **into** that file — inline its CSS and assets
+rather than emitting absolute URLs, since a viewer mounted under a `basePath`
+will not rewrite them for you.
 
 ## The two phases
 
@@ -85,7 +135,9 @@ any of them does work. Two reasons:
 
 Report bad input by returning issues; reserve throwing for a genuine bug in the
 plugin. An issue naming an `option` is rendered by the CLI as the flag the user
-typed (`--storage-name …`); omit `option` for a problem spanning several.
+typed (`--storage-name …`) and by the viewer as the setting in its config file
+(`connection 'prod' option 'path' …`); omit `option` for a problem spanning
+several.
 
 `@orion/core` provides the two constructors. `invalid` takes a single issue or
 an array of them, so accumulating is just as easy as reporting one:
@@ -107,7 +159,7 @@ ISO-8601 date" — since that is how it is printed.
 Do everything you can up front: resolving paths, checking a name stays inside a
 root, parsing a date. The role method should be able to trust what it is given.
 `OptionsResult` and `OptionIssue` live in `@orion/core` because every host runs
-this phase the same way — the CLI today, the viewer later.
+this phase the same way — the CLI from argv, the viewer from its config file.
 
 ## Options
 

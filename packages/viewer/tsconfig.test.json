@@ -1,0 +1,18 @@
+{
+  // Typechecks the tests, which the build config deliberately leaves out so
+  // they never reach dist/. `composite` and `declaration` are off because a
+  // composite project may not disable emit.
+  //
+  // `vite.config.ts` is not included: it resolves `@vitejs/plugin-vue` under
+  // NodeNext, which the plugin's own exports map does not satisfy. The client
+  // tsconfig covers it instead.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false
+  },
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts"]
+}

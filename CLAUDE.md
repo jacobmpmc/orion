@@ -22,25 +22,38 @@ designing anything new.
 | Package layout, data flow, current gaps | [`docs/architecture.md`](docs/architecture.md) |
 | pnpm workspace, catalog, release-age policy | [`docs/workspace.md`](docs/workspace.md) |
 | `orion` commands and option resolution | [`docs/cli.md`](docs/cli.md) |
+| `orion-viewer`, config, HTTP API, deployment | [`docs/viewer.md`](docs/viewer.md) |
 | Vitest setup and test layout | [`docs/testing.md`](docs/testing.md) |
 | TypeScript settings, naming, error handling | [`docs/conventions.md`](docs/conventions.md) |
 | Writing a plugin | [`plugins/README.md`](plugins/README.md) |
+| Running the two halves by hand | [`playground/README.md`](playground/README.md) |
 
 ## Commands
 
 ```sh
 pnpm install
-pnpm build                              # tsc --build across all packages
+pnpm build                              # tsc --build, then the viewer's vite build
 pnpm clean                              # remove build output
 pnpm typecheck                          # full rebuild, ignores incremental state
 pnpm test                               # every package's test script, --if-present
 pnpm exec orion help                    # run the built CLI
+pnpm exec orion-viewer --help           # run the built viewer
 
 pnpm --filter @orion/cli test                        # one package
 pnpm --filter @orion/cli test test/args.test.ts      # one file
 pnpm --filter @orion/cli test -t "coerces number"    # one test by name
 pnpm --filter @orion/cli test:watch
 pnpm --filter @orion/cli test:types                  # typecheck the tests
+
+pnpm --filter @orion/viewer build:client             # the browser client alone
+pnpm --filter @orion/viewer test:types:client        # typecheck the .vue files
+
+# Viewer dev, three terminals; open Vite's URL, not the server's
+pnpm --filter @orion/viewer dev                      # tsc watch → dist/
+pnpm --filter @orion/viewer dev:server               # node --watch dist/bin.js
+pnpm --filter @orion/viewer dev:client               # vite, HMR, proxies /api
+
+cd playground && pnpm generate "src/**" && pnpm serve   # both halves, by hand
 ```
 
 There is no linter or formatter configured.
@@ -54,19 +67,28 @@ storage. The viewer is never involved in generation. This is why plugins carry a
 it runs.
 
 - **`@orion/core`** ([`packages/core`](packages/core)) — shared contracts.
-  `ReporterPlugin`, `StoragePlugin`, `Report`, `OptionSpec`, `OptionsResult`.
-  Mostly types; the only runtime code is the result helpers in
-  [`src/results.ts`](packages/core/src/results.ts) (`ok`, `invalid`,
-  `isOptionsResult`), which plugins and hosts share.
+  `ReporterPlugin`, `StoragePlugin`, `ViewerPlugin`, `Report`, `OptionSpec`,
+  `OptionsResult`. Mostly types; the runtime code is the result helpers in
+  [`src/results.ts`](packages/core/src/results.ts) and the guards in
+  [`src/reports.ts`](packages/core/src/reports.ts) (`isReport`, `canStore`,
+  `canFetch`). Zero dependencies, and importable from a browser bundle.
+- **`@orion/host`** ([`packages/host`](packages/host)) — resolving, importing
+  and shape-checking a plugin package. Shared by both binaries; takes the host's
+  error constructor as a parameter, since `CliError` and `ViewerError` belong to
+  whoever prints them.
 - **`@orion/cli`** ([`packages/cli`](packages/cli)) — the `orion` binary.
+- **`@orion/viewer`** ([`packages/viewer`](packages/viewer)) — the
+  `orion-viewer` binary plus an importable `createServer`/`startServer`. Server
+  in `src/` (tsc → `dist/`), Vue client in `client/` (Vite → `dist/client/`).
 - **[`plugins/`](plugins)** — base plugins, matched by a workspace glob. So far
   only `@orion/plugin-storage-filesystem`
-  ([`plugins/storage-filesystem`](plugins/storage-filesystem)), which writes a
-  report as one JSON file under `--storage-path`.
+  ([`plugins/storage-filesystem`](plugins/storage-filesystem)), which stores and
+  reads a report as one JSON file under a root directory.
 
-The CLI loads plugins by dynamic import at runtime and has no build-time
+Both hosts load plugins by dynamic import at runtime and have no build-time
 dependency on any of them. Plugin packages resolve from the working directory
-first, then from where the CLI is installed.
+first, then relative to the host that asked (which is why `loadPlugin` takes a
+`from`: resolving relative to `@orion/host` would find nothing).
 
 ### Two things that look wrong but are not
 
@@ -82,6 +104,20 @@ run against the merged schema, is the one that matters. See
 collected across a canonical flag and its alias. See
 [`src/args.ts`](packages/cli/src/args.ts).
 
+**`StoragePlugin.store` and `.fetch` are both optional.** Not an oversight: the
+CLI only writes and the viewer only reads, so a write-only or read-only backend
+is valid. Each host loads with the method it needs and narrows to
+`WritableStoragePlugin` / `ReadableStoragePlugin`.
+
+**The viewer has no upload endpoint, and must not grow one.** A dropped report
+is parsed in the browser and never sent anywhere. That is what makes the app
+stateless per requirement 7, and it leaves no upload surface at all.
+
+**The viewer's `orion-viewer` flags use `parseArgs` directly**, not the CLI's
+`parseFlags`. Its flag set is fixed before any plugin loads, so there is no
+two-pass problem — and depending on `@orion/cli` would drag reporter-loading
+code into the viewer image, against requirement 5.
+
 ### Plugins run in two phases
 
 Every plugin implements `parseOptions(values)`, which validates the raw values
@@ -90,12 +126,19 @@ routed to it and builds its own options type — `ReporterPlugin<T>` /
 runs the parse phase for *every* plugin before any of them does work, so a bad
 option fails before anything is generated or stored.
 
-Plugins return `invalid(issues)` rather than throwing, which lets the CLI report
-issues from both plugins in one go; `ok(options)` is the success case. An
-issue's `option` is rendered as the canonical flag (`--storage-name …`). The
-types and their helpers live in core because the viewer will run the same phase
-for its storage plugins — including `isOptionsResult`, which a host uses to
-check what a plugin handed back.
+Plugins return `invalid(issues)` rather than throwing, which lets a host report
+issues from every plugin in one go; `ok(options)` is the success case. An
+issue's `option` is rendered as the canonical flag by the CLI (`--storage-name
+…`) and as the config setting by the viewer (`connection 'prod' option 'path'
+…`). The types and their helpers live in core because both hosts run the same
+phase — including `isOptionsResult`, which a host uses to check what a plugin
+handed back.
+
+The viewer runs this for every storage *and* viewer plugin before it listens, so
+a misconfigured viewer never accepts a request. Its values come from a config
+file rather than argv, which is what
+[`viewer/src/config/options.ts`](packages/viewer/src/config/options.ts) exists
+for — the CLI's equivalent is welded to `FlagDef` and argv order.
 
 ### Plugin option resolution
 
@@ -110,7 +153,15 @@ name; they stay on separate targets and neither sees the other's values.
 
 ## Gotchas
 
-- **Build before running the CLI.** The `bin` points at `dist/`, not sources.
+- **Build before running either binary.** The `bin`s point at `dist/`, not
+  sources.
+- **The viewer's client is a separate Vite build.** `tsc --build` alone leaves
+  `dist/client` missing, and every page then returns 503 while the API keeps
+  working. `pnpm build` runs both.
+- **`client/tsconfig.json` deliberately does not extend `tsconfig.base.json`**
+  (DOM lib, bundler resolution) and is not in the root references. Typecheck it
+  with `test:types:client` — a third entry point neither `pnpm typecheck` nor
+  `test:types` covers.
 - **Relative imports need a `.js` extension** (`NodeNext`), even in `.ts` files.
 - **`noUncheckedIndexedAccess` is on** — indexing yields `T | undefined`.
 - **A new package must be added to the root [`tsconfig.json`](tsconfig.json)
@@ -123,14 +174,19 @@ name; they stay on separate targets and neither sees the other's values.
   range cap, not a bug.
 - **`pnpm test` does not typecheck tests.** Vitest strips types and
   `tsc --build` excludes `test/`. Run `test:types` separately.
-- **Test fixtures in `packages/cli/test/fixtures/` are real `.mjs` modules**,
-  loaded for real rather than mocked. Several are deliberately invalid to
-  exercise failure paths — do not "fix" them.
-- **pnpm only links a workspace `bin` when something depends on the package.**
-  The root `package.json` depends on `@orion/cli` for that reason alone.
+- **Test fixtures in `test/fixtures/` are real `.mjs` modules**, loaded for real
+  rather than mocked. Several are deliberately invalid to exercise failure
+  paths — do not "fix" them.
+- **pnpm only links a workspace `bin` when something depends on the package**,
+  and only once `dist/` exists. The root `package.json` depends on `@orion/cli`
+  and `@orion/viewer` for that reason alone; if `pnpm exec orion-viewer` is not
+  found, build and reinstall.
+- **Viewer tests bind port `0`** and pass `config: false`, so they never collide
+  and never pick up a stray config file from the working directory.
 
 ## Not built yet
 
-No reporter plugin, no viewer app, and no stdin input for `generate` (it
-currently errors when given no positional arguments, though requirement 2 calls
-for piped input).
+No reporter plugin, no viewer plugin (so a fetched report reaches an empty state
+rather than a rendering), and no stdin input for `generate` (it currently errors
+when given no positional arguments, though requirement 2 calls for piped input).
+There is no authentication anywhere in the viewer.

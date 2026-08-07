@@ -15,6 +15,7 @@ or [Architecture](architecture.md) if you want to know how the pieces fit.
 | [Architecture](architecture.md) | Packages, roles, and how a report flows from tool output to viewer |
 | [Workspace](workspace.md) | pnpm layout, the version catalog, the release-age policy, adding a package |
 | [CLI](cli.md) | `orion` commands, option resolution, exit codes |
+| [Viewer](viewer.md) | `orion-viewer`, configuration, the HTTP API, report links, deployment |
 | [Testing](testing.md) | Vitest setup, where tests live, typechecking tests |
 | [Conventions](conventions.md) | TypeScript settings, module style, naming, error handling |
 
@@ -24,12 +25,13 @@ or [Architecture](architecture.md) if you want to know how the pieces fit.
 | --- | --- |
 | [`REQUIREMENTS.md`](../REQUIREMENTS.md) | Product requirements the design answers to |
 | [`plugins/README.md`](../plugins/README.md) | Plugin authoring guide: roles, contract, the two phases, naming |
-| [`plugins/storage-filesystem/`](../plugins/storage-filesystem) | Stores a report as a JSON file on disk |
+| [`plugins/storage-filesystem/`](../plugins/storage-filesystem) | Stores and reads a report as a JSON file on disk |
+| [`playground/`](../playground) | Scratch project for running the CLI and viewer against each other |
 | [`CLAUDE.md`](../CLAUDE.md) | Orientation for coding agents working in this repo |
 
 ## Status
 
-Early. The workspace, CLI skeleton, plugin contracts, test setup and one storage
-plugin exist. Not yet built: any reporter plugin, the viewer app, and stdin
-input for `generate`. See
+Early. The workspace, CLI skeleton, plugin contracts, test setup, one storage
+plugin and the viewer app exist. Not yet built: any reporter plugin, any viewer
+plugin, and stdin input for `generate`. See
 [Architecture](architecture.md#what-is-not-built-yet) for the current gaps.

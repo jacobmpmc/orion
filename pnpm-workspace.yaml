@@ -1,6 +1,10 @@
 packages:
   - "packages/*"
   - "plugins/*"
+  # A scratch project that consumes the workspace the way a real one would.
+  # Being a workspace member is the point: it depends on the binaries, so pnpm
+  # links them into playground/node_modules/.bin.
+  - "playground"
 
 # Single source of truth for dependency versions shared across packages.
 # Reference an entry from a package.json with "catalog:", e.g.
@@ -9,6 +13,12 @@ catalog:
   "@types/node": ^22.13.0
   typescript: ^5.7.0
   vitest: ^4.1.10
+  # Build-time only, for the viewer's browser client. Nothing at runtime
+  # depends on these -- see packages/viewer/README.md.
+  vue: ^3.5.0
+  vite: ^8.0.0
+  "@vitejs/plugin-vue": ^6.0.0
+  vue-tsc: ^3.0.0
 
 # Only install package versions that have been published for at least 1 week
 # (10080 minutes). Guards against compromised/yanked fresh releases.

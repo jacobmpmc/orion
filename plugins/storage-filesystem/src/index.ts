@@ -1,9 +1,15 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { invalid, ok } from "@orion/core";
-import type { OptionIssue, OptionValues, Report, StoragePlugin } from "@orion/core";
+import { invalid, isReport, ok } from "@orion/core";
+import type {
+  OptionIssue,
+  OptionValues,
+  ReadableStoragePlugin,
+  Report,
+  WritableStoragePlugin,
+} from "@orion/core";
 
 const EXTENSION = ".json";
 
@@ -64,7 +70,20 @@ function isContained(root: string, name: string): boolean {
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
-const plugin: StoragePlugin<FilesystemStorageOptions> = {
+/**
+ * True for the errors that mean "there is nothing there", as opposed to a fault
+ * worth reporting. A path component that is a file rather than a directory, or
+ * a directory where a file was expected, are both just misses.
+ */
+function isMissing(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | null)?.code;
+  return code === "ENOENT" || code === "ENOTDIR" || code === "EISDIR";
+}
+
+// Annotated with both capabilities rather than the bare `StoragePlugin`, whose
+// methods are optional: a misspelled method name would otherwise compile.
+const plugin: WritableStoragePlugin<FilesystemStorageOptions> &
+  ReadableStoragePlugin<FilesystemStorageOptions> = {
   kind: "storage",
   name: "filesystem",
   options: [
@@ -117,6 +136,32 @@ const plugin: StoragePlugin<FilesystemStorageOptions> = {
     await writeFile(file, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 
     return { id, url: pathToFileURL(file).href };
+  },
+
+  async fetch({ id, options }) {
+    // The id is a root-relative posix path this plugin itself produced, but by
+    // the time it comes back it has been through a URL, so containment is
+    // re-checked rather than assumed.
+    if (!isContained(options.root, id)) return undefined;
+
+    const { file } = target(options.root, id.split("/").join(sep));
+
+    let text: string;
+    try {
+      text = await readFile(file, "utf8");
+    } catch (error) {
+      if (isMissing(error)) return undefined;
+      throw error;
+    }
+
+    // A file that exists but is not a report is a real fault, not a miss: it
+    // means something else is writing into the reports directory.
+    const parsed: unknown = JSON.parse(text);
+    if (!isReport(parsed)) {
+      throw new Error(`${file} is not an Orion report.`);
+    }
+
+    return parsed;
   },
 };
 

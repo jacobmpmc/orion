@@ -2,7 +2,10 @@
 
 ## Prerequisites
 
-- **Node.js >= 22** — enforced by `engines` in the root `package.json`.
+- **Node.js >= 22.18** — enforced by `engines` in the root `package.json`. The
+  floor is 22.18 rather than 22 because that is where type stripping became
+  available without a flag, which is what lets the viewer load a `.ts` config
+  file.
 - **pnpm 11.14.0** — pinned via `packageManager`. Corepack will select it
   automatically; otherwise `npm i -g pnpm@11.14.0`.
 
@@ -26,12 +29,17 @@ Run from the repo root:
 
 | Command | What it does |
 | --- | --- |
-| `pnpm build` | Builds every package in dependency order (`tsc --build`) |
+| `pnpm build` | Builds every package in dependency order (`tsc --build`), then the viewer's client (`vite build`) |
 | `pnpm clean` | Removes build output and `.tsbuildinfo` files |
 | `pnpm typecheck` | Full rebuild, ignoring incremental state |
 | `pnpm test` | Runs each package's `test` script, if it has one |
 | `pnpm dev` | Watch-mode build across all packages |
 | `pnpm exec orion …` | Runs the built CLI |
+| `pnpm exec orion-viewer …` | Runs the built viewer |
+
+`tsc --build` alone does not produce the viewer's browser client — that is a
+separate Vite build, and without it the viewer serves 503 for every page while
+its API keeps working. `pnpm build` runs both, in that order.
 
 Per package, use `--filter`:
 
@@ -53,9 +61,27 @@ pnpm exec orion help
 pnpm exec orion help generate
 ```
 
-`orion generate` needs a reporter and a storage plugin, and none exist yet. To
-exercise it today you need a local plugin file — see
+`orion generate` needs a reporter and a storage plugin, and no reporter exists
+yet. To exercise it today you need a local plugin file — see
 [CLI](cli.md#trying-generate-without-a-published-plugin).
+
+## The playground
+
+[`playground/`](../playground) is already wired up for exactly this: it depends
+on both binaries and the filesystem storage plugin, and carries a worked config
+and a stand-in reporter.
+
+```sh
+pnpm build          # from the repo root
+cd playground
+pnpm generate "src/**/*.ts"
+pnpm serve
+```
+
+Open the printed URL, or go straight to the report `generate` named:
+`http://127.0.0.1:7317/r/local/<id>`. With no viewer plugin installed the report
+is fetched but reaches an empty state rather than a rendering — see
+[Viewer](viewer.md) and [`playground/README.md`](../playground/README.md).
 
 ## Editor setup
 

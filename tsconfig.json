@@ -2,7 +2,9 @@
   "files": [],
   "references": [
     { "path": "./packages/core" },
+    { "path": "./packages/host" },
     { "path": "./packages/cli" },
+    { "path": "./packages/viewer" },
     { "path": "./plugins/storage-filesystem" }
   ]
 }

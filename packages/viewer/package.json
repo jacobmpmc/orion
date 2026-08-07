@@ -1,0 +1,49 @@
+{
+  "name": "@orion/viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "orion-viewer": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/define.d.ts",
+      "default": "./dist/config/define.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "build:client": "vite build",
+    "clean:client": "node -e \"require('node:fs').rmSync('dist/client',{recursive:true,force:true})\"",
+    "dev": "tsc --build --watch",
+    "dev:server": "node --watch ./dist/bin.js",
+    "dev:client": "vite",
+    "start": "node ./dist/bin.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:types": "tsc --noEmit -p tsconfig.test.json",
+    "test:types:client": "vue-tsc --noEmit -p client/tsconfig.json"
+  },
+  "dependencies": {
+    "@orion/core": "workspace:*",
+    "@orion/host": "workspace:*"
+  },
+  "devDependencies": {
+    "@orion/plugin-storage-filesystem": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "vue": "catalog:",
+    "vue-tsc": "catalog:"
+  }
+}

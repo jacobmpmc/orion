@@ -5,11 +5,11 @@
   "type": "module",
   "packageManager": "pnpm@11.14.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "scripts": {
-    "build": "tsc --build",
-    "clean": "tsc --build --clean",
+    "build": "tsc --build && pnpm -r --if-present build:client",
+    "clean": "tsc --build --clean && pnpm -r --if-present clean:client",
     "typecheck": "tsc --build --force",
     "test": "pnpm -r --if-present test",
     "dev": "pnpm -r --parallel --if-present dev",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@orion/cli": "workspace:*",
+    "@orion/viewer": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

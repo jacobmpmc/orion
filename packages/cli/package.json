@@ -15,7 +15,8 @@
     "test:types": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
-    "@orion/core": "workspace:*"
+    "@orion/core": "workspace:*",
+    "@orion/host": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

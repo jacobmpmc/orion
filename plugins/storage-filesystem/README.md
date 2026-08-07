@@ -34,6 +34,31 @@ forward slashes so an id written on Windows still resolves elsewhere. That is
 what a viewer configured with the same root uses to fetch the report. The `url`
 is a `file:` link to the file itself.
 
+## Reading a report back
+
+This plugin implements both storage capabilities, so a viewer can read from the
+same directory `generate` wrote to:
+
+```js
+// orion-viewer.config.js
+export default {
+  connections: [{
+    name: "local",
+    package: "@orion/plugin-storage-filesystem",
+    options: { path: "./reports" },
+  }],
+};
+```
+
+`fetch` takes the `id` `store` handed out. An id that does not resolve to a file
+inside the root, or names nothing at all, resolves `undefined` — a miss, which
+the viewer turns into a 404. Containment is re-checked on the way in even though
+this plugin produced the id itself, because by then it has been through a URL.
+
+A file that exists but is not an Orion report throws instead. That is not a
+miss: it means something else is writing into the reports directory, and
+silently reporting "not found" would hide it.
+
 An explicit `--storage-name` may contain subdirectories (`builds/42/diff.json`)
 but may not escape the configured path. Writing over an existing file is
 allowed, which is what makes `--storage-name latest.json` useful.

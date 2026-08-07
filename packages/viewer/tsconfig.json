@@ -1,0 +1,11 @@
+{
+  // Server only. `client/` is deliberately excluded: it is a Vite build with a
+  // DOM lib and bundler resolution, which would drag both into this project.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/host" }]
+}

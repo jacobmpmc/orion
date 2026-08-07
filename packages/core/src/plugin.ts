@@ -73,7 +73,85 @@ export interface StorageResult {
   readonly url?: string;
 }
 
+export interface FetchContext<TOptions = unknown> {
+  /** The `StorageResult.id` this backend previously returned, verbatim. */
+  readonly id: string;
+  /** Whatever this plugin's `parseOptions` built. */
+  readonly options: TOptions;
+}
+
+/**
+ * A storage backend.
+ *
+ * Both methods are optional and independent: `orion generate` only ever writes
+ * and the viewer only ever reads, so a write-only backend (an artifact
+ * uploader) or a read-only one (a mirror someone else fills) is a legitimate
+ * plugin. A host narrows to the capability it needs when it loads the plugin,
+ * which is why the type itself does not demand either.
+ */
 export interface StoragePlugin<TOptions = unknown> extends Plugin<TOptions> {
   readonly kind: "storage";
-  store(context: StorageContext<TOptions>): Promise<StorageResult>;
+  store?(context: StorageContext<TOptions>): Promise<StorageResult>;
+  /**
+   * Retrieves a previously stored report.
+   *
+   * Resolving `undefined` means no report exists for that id, which is a normal
+   * answer rather than a failure. Throw only when the backend itself cannot be
+   * reached or answers with something unusable.
+   */
+  fetch?(context: FetchContext<TOptions>): Promise<Report | undefined>;
 }
+
+/** A `StoragePlugin` known to implement `store`. */
+export type WritableStoragePlugin<TOptions = unknown> = StoragePlugin<TOptions> &
+  Required<Pick<StoragePlugin<TOptions>, "store">>;
+
+/** A `StoragePlugin` known to implement `fetch`. */
+export type ReadableStoragePlugin<TOptions = unknown> = StoragePlugin<TOptions> &
+  Required<Pick<StoragePlugin<TOptions>, "fetch">>;
+
+/**
+ * Renders one or more report kinds in the viewer app.
+ *
+ * Unlike the other roles this one has no method the host calls: the rendering
+ * happens in a browser, in a bundle the viewer serves to the client. The plugin
+ * object's job is to declare what it renders and where that bundle lives.
+ */
+export interface ViewerPlugin<TOptions = unknown> extends Plugin<TOptions> {
+  readonly kind: "viewer";
+  /** `Report.kind` values this plugin renders. The dispatch key. */
+  readonly reports: readonly string[];
+  /**
+   * Absolute path or `file:` URL of the built browser ESM module.
+   *
+   * Declared as data rather than imported, because the server process must
+   * never evaluate browser code -- it only reads the file's bytes and serves
+   * them. Typically `new URL("./browser/index.js", import.meta.url).href`.
+   */
+  readonly bundle: string;
+}
+
+/** What a viewer plugin's browser bundle is handed when it mounts. */
+export interface ViewerMountContext {
+  readonly report: Report;
+  /** Where the report came from, absent when the user dropped it in. */
+  readonly source?: {
+    readonly connection: string;
+    readonly id: string;
+  };
+}
+
+export type ViewerUnmount = () => void;
+
+/**
+ * The one export a viewer plugin's browser bundle must provide.
+ *
+ * `TElement` is a type parameter rather than `HTMLElement` because this package
+ * compiles without the DOM lib; a plugin's own browser build instantiates it.
+ * The contract is deliberately DOM-only so a plugin can use any framework
+ * internally without having to match the host app's.
+ */
+export type ViewerMount<TElement = unknown> = (
+  element: TElement,
+  context: ViewerMountContext,
+) => ViewerUnmount | Promise<ViewerUnmount>;

@@ -27,7 +27,7 @@ orion generate --reporter <package> --storage <package> [options] <file|glob...>
 | Option | Meaning |
 | --- | --- |
 | `--reporter <package>` | Reporter plugin that builds the report. Required |
-| `--storage <package>` | Storage plugin that persists it. Required |
+| `--storage <package>` | Storage plugin that persists it. Required. Must implement `store` — a read-only backend is a valid plugin but not usable here |
 | `--help` | Usage, including options contributed by the named plugins |
 
 Positional arguments are file names or glob patterns, passed to the reporter
