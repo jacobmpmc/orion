@@ -1,0 +1,211 @@
+import { parseArgs as nodeParseArgs } from "node:util";
+import type { OptionSpec, OptionValue, OptionValues } from "@orion/core";
+
+/** An error with a message already suitable for display to the user. */
+export class CliError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CliError";
+  }
+}
+
+/**
+ * A single accepted flag. Several flags may share a `target`, which is how a
+ * plugin option gets both a canonical prefixed form and a bare alias.
+ */
+export interface FlagDef {
+  /** Flag as typed on the command line, without the leading `--`. */
+  readonly flag: string;
+  /** Key the resolved value is stored under. */
+  readonly target: string;
+  readonly spec: OptionSpec;
+}
+
+export interface ParseResult {
+  readonly values: Readonly<Record<string, OptionValue>>;
+  readonly positionals: readonly string[];
+}
+
+function coerce(def: FlagDef, raw: string | boolean): string | number | boolean {
+  if (def.spec.type === "boolean") {
+    return true;
+  }
+
+  const text = String(raw);
+
+  if (def.spec.type === "number") {
+    const parsed = Number(text);
+    if (!Number.isFinite(parsed)) {
+      throw new CliError(`Option --${def.flag} expects a number but got '${text}'.`);
+    }
+    return parsed;
+  }
+
+  return text;
+}
+
+/**
+ * Parses `argv` against `defs`. Unknown flags are rejected so that a typo in a
+ * plugin option fails loudly rather than being silently ignored.
+ */
+export function parseFlags(argv: readonly string[], defs: readonly FlagDef[]): ParseResult {
+  const options: Record<string, { type: "string" | "boolean"; multiple?: boolean }> = {};
+  for (const def of defs) {
+    options[def.flag] = {
+      type: def.spec.type === "boolean" ? "boolean" : "string",
+      ...(def.spec.multiple === true ? { multiple: true } : {}),
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = nodeParseArgs({
+      args: [...argv],
+      options,
+      strict: true,
+      allowPositionals: true,
+      // Tokens preserve the order flags appeared in, which `values` alone does
+      // not. Repeatable options must collect in command-line order even when
+      // mixed between a canonical flag and its alias.
+      tokens: true,
+    });
+  } catch (error) {
+    throw new CliError(error instanceof Error ? error.message : String(error));
+  }
+
+  const defsByFlag = new Map<string, FlagDef>();
+  for (const def of defs) {
+    defsByFlag.set(def.flag, def);
+  }
+
+  const values: Record<string, OptionValue> = {};
+  const setBy = new Map<string, string>();
+
+  for (const token of parsed.tokens ?? []) {
+    if (token.kind !== "option") continue;
+
+    const def = defsByFlag.get(token.name);
+    // Unknown flags were already rejected by the strict pass above.
+    if (def === undefined) continue;
+
+    const coerced = coerce(def, token.value ?? true);
+
+    if (def.spec.multiple === true) {
+      const previous = values[def.target];
+      const list = Array.isArray(previous) ? [...previous] : [];
+      values[def.target] = [...list, coerced] as OptionValue;
+    } else {
+      const previousFlag = setBy.get(def.target);
+      // Repeating one flag is fine (last wins), but mixing a canonical flag
+      // with its alias is ambiguous.
+      if (previousFlag !== undefined && previousFlag !== def.flag) {
+        throw new CliError(
+          `Option --${def.flag} conflicts with --${previousFlag}; specify only one.`,
+        );
+      }
+      values[def.target] = coerced;
+    }
+    setBy.set(def.target, def.flag);
+  }
+
+  // Apply defaults and enforce required options, once per target rather than
+  // once per alias.
+  const seenTargets = new Set<string>();
+  for (const def of defs) {
+    if (seenTargets.has(def.target)) continue;
+    seenTargets.add(def.target);
+
+    if (values[def.target] !== undefined) continue;
+
+    if (def.spec.default !== undefined) {
+      values[def.target] = def.spec.default;
+    } else if (def.spec.required === true) {
+      throw new CliError(`Missing required option --${def.flag}.`);
+    } else if (def.spec.type === "boolean") {
+      values[def.target] = false;
+    }
+  }
+
+  return { values, positionals: parsed.positionals };
+}
+
+/**
+ * Builds the flag definitions for a plugin's options.
+ *
+ * Every option gets a canonical `--<role>-<name>` form, so a reporter and a
+ * storage plugin that both want `--token` can always be disambiguated. The bare
+ * `--<name>` is registered as an alias too, but only when nothing else has
+ * claimed it -- that keeps the common case terse without making plugin pairs
+ * mutually incompatible.
+ */
+export function pluginFlagDefs(
+  role: "reporter" | "storage",
+  specs: readonly OptionSpec[],
+  claimed: ReadonlySet<string>,
+): { defs: FlagDef[]; claims: Set<string> } {
+  const defs: FlagDef[] = [];
+  const claims = new Set<string>();
+
+  for (const spec of specs) {
+    const canonical = `${role}-${spec.name}`;
+    const target = `${role}:${spec.name}`;
+
+    defs.push({ flag: canonical, target, spec });
+    claims.add(canonical);
+
+    if (!claimed.has(spec.name) && !claims.has(spec.name)) {
+      defs.push({ flag: spec.name, target, spec });
+      claims.add(spec.name);
+    }
+  }
+
+  return { defs, claims };
+}
+
+/** Extracts one role's options, keyed by their bare `OptionSpec.name`. */
+export function optionsForRole(
+  values: Readonly<Record<string, OptionValue>>,
+  role: "reporter" | "storage",
+): OptionValues {
+  const prefix = `${role}:`;
+  const result: Record<string, OptionValue> = {};
+
+  for (const [key, value] of Object.entries(values)) {
+    if (key.startsWith(prefix)) {
+      result[key.slice(prefix.length)] = value;
+    }
+  }
+
+  return result;
+}
+
+/** Renders `defs` as aligned help lines, one per distinct option. */
+export function describeFlags(defs: readonly FlagDef[]): string[] {
+  const byTarget = new Map<string, { flags: string[]; spec: OptionSpec }>();
+
+  for (const def of defs) {
+    const entry = byTarget.get(def.target);
+    if (entry === undefined) {
+      byTarget.set(def.target, { flags: [def.flag], spec: def.spec });
+    } else {
+      entry.flags.push(def.flag);
+    }
+  }
+
+  const rows = [...byTarget.values()].map(({ flags, spec }) => {
+    const rendered = flags.map((flag) => `--${flag}`).join(", ");
+    const argument = spec.type === "boolean" ? "" : ` <${spec.type}>`;
+    return { left: `${rendered}${argument}`, spec };
+  });
+
+  const width = Math.max(0, ...rows.map((row) => row.left.length));
+
+  return rows.map(({ left, spec }) => {
+    const notes: string[] = [];
+    if (spec.required === true) notes.push("required");
+    if (spec.multiple === true) notes.push("repeatable");
+    if (spec.default !== undefined) notes.push(`default: ${String(spec.default)}`);
+    const suffix = notes.length > 0 ? ` [${notes.join(", ")}]` : "";
+    return `  ${left.padEnd(width)}  ${spec.description}${suffix}`;
+  });
+}

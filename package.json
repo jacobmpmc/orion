@@ -12,10 +12,12 @@
     "clean": "tsc --build --clean",
     "typecheck": "tsc --build --force",
     "test": "pnpm -r --if-present test",
-    "dev": "pnpm -r --parallel --if-present dev"
+    "dev": "pnpm -r --parallel --if-present dev",
+    "orion": "orion"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0",
-    "typescript": "^5.7.0"
+    "@orion/cli": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   }
 }

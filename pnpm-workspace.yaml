@@ -1,6 +1,14 @@
 packages:
   - "packages/*"
-  - "apps/*"
+  - "plugins/*"
+
+# Single source of truth for dependency versions shared across packages.
+# Reference an entry from a package.json with "catalog:", e.g.
+#   "devDependencies": { "typescript": "catalog:" }
+catalog:
+  "@types/node": ^22.13.0
+  typescript: ^5.7.0
+  vitest: ^4.1.10
 
 # Only install package versions that have been published for at least 1 week
 # (10080 minutes). Guards against compromised/yanked fresh releases.
