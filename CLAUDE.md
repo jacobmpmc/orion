@@ -77,6 +77,8 @@ it runs.
   error constructor as a parameter, since `CliError` and `ViewerError` belong to
   whoever prints them.
 - **`@orion/cli`** ([`packages/cli`](packages/cli)) — the `orion` binary.
+  `generate` builds a report and stores it; `store` takes a report file that
+  already exists and stores it, so an upload job needs no reporter installed.
 - **`@orion/viewer`** ([`packages/viewer`](packages/viewer)) — the
   `orion-viewer` binary plus an importable `createServer`/`startServer`. Server
   in `src/` (tsc → `dist/`), Vue client in `client/` (Vite → `dist/client/`).
@@ -92,12 +94,15 @@ first, then relative to the host that asked (which is why `loadPlugin` takes a
 
 ### Two things that look wrong but are not
 
-**`generate` parses argv twice.** The valid flags are not known until the
-plugins named by `--reporter`/`--storage` load — and those names are themselves
-arguments. A lenient first pass reads only those two flags and *deliberately
-misparses everything else*; its results are discarded. The strict second pass,
-run against the merged schema, is the one that matters. See
-[`src/commands/generate.ts`](packages/cli/src/commands/generate.ts).
+**`generate` and `store` parse argv twice.** The valid flags are not known until
+the plugins named by `--reporter`/`--storage` load — and those names are
+themselves arguments. A lenient first pass reads only the role flags and
+*deliberately misparses everything else*; its results are discarded. The strict
+second pass, run against the merged schema, is the one that matters. That
+plumbing — the pre-scan, flag schema, parse phase, help layout and error
+handling every plugin-bearing command shares — lives in
+[`src/commands/plugin-command.ts`](packages/cli/src/commands/plugin-command.ts);
+a new such command composes it rather than repeating it.
 
 **Argument values are built from `parseArgs` tokens, not its `values` object.**
 `values` loses the order flags appeared in, which breaks repeatable options

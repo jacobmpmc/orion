@@ -31,6 +31,7 @@ Then open <http://127.0.0.1:7317>, or go straight to the id `generate` printed:
 | Command | What it does |
 | --- | --- |
 | `pnpm generate <glob…>` | Generates a report into `./reports` |
+| `pnpm run store <file>` | Puts an existing report file into `./reports`, no reporter involved. Needs `run`: pnpm has a `store` command of its own |
 | `pnpm serve` | Starts the viewer against that directory |
 | `pnpm certs` && `pnpm serve:https` | Generates a self-signed certificate and serves over TLS |
 | `pnpm reset` | Deletes `./reports` |
@@ -44,6 +45,15 @@ pnpm generate --storage-name runs/42/diff.json "."  # ids may contain slashes
 ```
 
 ## Things worth trying
+
+**Re-storing a report someone else generated.** Take a file out of `reports/`
+and put it back under a name you choose — no reporter runs, and the envelope is
+checked before the backend is asked to keep it:
+
+```sh
+pnpm run store --storage-name copy.json ./reports/<id>.json
+pnpm run store ./package.json        # rejected: valid JSON, but not a report
+```
 
 **A report id with slashes.** `--storage-name runs/42/diff.json` produces the id
 `runs/42/diff.json`, and the link `/r/local/runs/42/diff.json` resolves it — the

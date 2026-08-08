@@ -38,6 +38,7 @@ Tests live in `test/` rather than beside the source because the build
 | [`args.test.ts`](../packages/cli/test/args.test.ts) | Coercion, defaults, required, repeatables, `--`, unknown flags, alias/collision rules |
 | [`plugins.test.ts`](../packages/cli/test/plugins.test.ts) | Plugin loading, every rejection path, and the parse phase's result check |
 | [`generate.test.ts`](../packages/cli/test/generate.test.ts) | `generate` end to end, option routing, the parse phase, `--help` |
+| [`store.test.ts`](../packages/cli/test/store.test.ts) | `store` end to end, reading and validating the report file, `--help` |
 | [`commands.test.ts`](../packages/cli/test/commands.test.ts) | Command registry and help rendering |
 | [`core/test/results.test.ts`](../packages/core/test/results.test.ts) | `ok`, `invalid`, `isOptionIssue`, `isOptionsResult` |
 | [`core/test/reports.test.ts`](../packages/core/test/reports.test.ts) | `isReport`, and narrowing a backend with `canStore` / `canFetch` |

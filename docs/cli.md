@@ -8,6 +8,7 @@ The `orion` binary. Build first (`pnpm build`), then `pnpm exec orion <command>`
 | --- | --- |
 | `orion help [command]` | Lists commands, or shows usage for one |
 | `orion generate` | Builds a report and persists it |
+| `orion store` | Persists a report file that already exists |
 
 Bare `orion`, `orion --help` and `orion -h` all print the command list.
 An unknown command writes to stderr and exits 1.
@@ -97,12 +98,58 @@ An issue naming an option is printed as the canonical flag; one that spans
 several is attributed to the plugin instead. Nothing has been generated or
 stored by this point, so a run that fails here leaves nothing behind.
 
+## `orion store`
+
+```
+orion store --storage <package> [options] <file>
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--storage <package>` | Storage plugin that persists the report. Required. Must implement `store` |
+| `--help` | Usage, including options contributed by the named plugin |
+
+Takes a report that already exists on disk — one an earlier `orion generate`
+produced, or one written by any other tool — and hands it to a storage plugin
+unchanged. No reporter is involved, which is the point: a pipeline that builds
+its report in one job can upload it from another without installing the reporter
+there.
+
+The single positional is a path to one JSON file. Unlike `generate`'s
+positionals it is **not** a glob and is not passed through to a plugin: the CLI
+reads it itself, so it must name an existing file. Giving no file, or more than
+one, is an error.
+
+The file is parsed and checked against the `Report` envelope (`kind`, `version`,
+`generatedAt`, `data`) with `isReport` before storage is called, so a JSON file
+that is not a report is rejected rather than persisted. `data` is not inspected
+— only the reporter that produced it and the viewer plugin that renders it know
+its shape. A leading byte-order mark is tolerated.
+
+Option resolution and the parse phase work exactly as they do for `generate`,
+with only the `storage` role in play. With no reporter competing for them, the
+storage plugin's options always get their bare aliases as well as the canonical
+`--storage-<name>` form:
+
+```sh
+orion store --storage @orion/plugin-storage-filesystem --path ./reports ./report.json
+```
+
+Options are parsed before the file is read, so a bad option fails without
+touching the filesystem. Success prints the same two lines as `generate`:
+
+```
+Stored pulumi-diff report as pulumi-diff-20260806T093000Z-1f4c2a.json
+file:///…/reports/pulumi-diff-20260806T093000Z-1f4c2a.json
+```
+
 ## Exit codes
 
 `0` on success. `1` for any user-facing failure: unknown command, unknown or
 malformed option, a missing required option, an option a plugin rejected, no
-input files, or a plugin that cannot be loaded or is of the wrong role.
-Failures print to stderr prefixed with the command name.
+input files, a report file that cannot be read or is not a report, or a plugin
+that cannot be loaded or is of the wrong role. Failures print to stderr prefixed
+with the command name.
 
 Unexpected errors are not caught and surface as a normal Node stack trace.
 

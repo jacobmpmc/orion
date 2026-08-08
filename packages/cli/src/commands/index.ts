@@ -1,5 +1,6 @@
 import { generateCommand } from "./generate.js";
 import { createHelpCommand } from "./help.js";
+import { storeCommand } from "./store.js";
 import type { Command } from "./types.js";
 
 /**
@@ -8,6 +9,7 @@ import type { Command } from "./types.js";
  */
 export const commands: readonly Command[] = [
   generateCommand,
+  storeCommand,
   createHelpCommand(() => commands),
 ];
 

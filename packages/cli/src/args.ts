@@ -1,6 +1,12 @@
 import { parseArgs as nodeParseArgs } from "node:util";
 import type { OptionSpec, OptionValue, OptionValues } from "@orion/core";
 
+/**
+ * A plugin role the CLI routes options to. `viewer` plugins are never named on
+ * the command line, so the CLI's own role type is narrower than `PluginKind`.
+ */
+export type Role = "reporter" | "storage";
+
 /** An error with a message already suitable for display to the user. */
 export class CliError extends Error {
   constructor(message: string) {
@@ -139,7 +145,7 @@ export function parseFlags(argv: readonly string[], defs: readonly FlagDef[]): P
  * mutually incompatible.
  */
 export function pluginFlagDefs(
-  role: "reporter" | "storage",
+  role: Role,
   specs: readonly OptionSpec[],
   claimed: ReadonlySet<string>,
 ): { defs: FlagDef[]; claims: Set<string> } {
@@ -165,7 +171,7 @@ export function pluginFlagDefs(
 /** Extracts one role's options, keyed by their bare `OptionSpec.name`. */
 export function optionsForRole(
   values: Readonly<Record<string, OptionValue>>,
-  role: "reporter" | "storage",
+  role: Role,
 ): OptionValues {
   const prefix = `${role}:`;
   const result: Record<string, OptionValue> = {};

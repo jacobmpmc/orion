@@ -65,6 +65,14 @@ pnpm exec orion help generate
 yet. To exercise it today you need a local plugin file — see
 [CLI](cli.md#trying-generate-without-a-published-plugin).
 
+`orion store` needs only a storage plugin, so it runs against a report file you
+write by hand:
+
+```sh
+echo '{"kind":"demo","version":1,"generatedAt":"2026-01-01T00:00:00.000Z","data":{}}' > report.json
+pnpm exec orion store --storage @orion/plugin-storage-filesystem --path ./reports report.json
+```
+
 ## The playground
 
 [`playground/`](../playground) is already wired up for exactly this: it depends

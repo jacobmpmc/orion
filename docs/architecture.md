@@ -26,6 +26,11 @@ tool output (file / glob)
 This split is why plugins are typed by role: a pipeline installs the reporter
 and storage plugins only, and never pulls in rendering code it will not run.
 
+The first leg can also be split in two. `orion store` takes a report file that
+already exists and pushes it to storage, so a job that generated a report can
+hand it to a later job that uploads it with only the storage plugin installed —
+same second half of the pipeline, no reporter.
+
 ## Packages
 
 | Package | Path | Role |
@@ -58,7 +63,9 @@ parameter, since a user-facing error type belongs to the host that prints it —
 | [`host/src/plugins.ts`](../packages/host/src/plugins.ts) | Resolves, imports and shape-checks a plugin package |
 | [`cli/src/index.ts`](../packages/cli/src/index.ts) | Entry point and command dispatch |
 | [`cli/src/commands/index.ts`](../packages/cli/src/commands/index.ts) | Command registry — add new commands here |
-| [`cli/src/commands/generate.ts`](../packages/cli/src/commands/generate.ts) | The `generate` command and its two-pass argument parse |
+| [`cli/src/commands/plugin-command.ts`](../packages/cli/src/commands/plugin-command.ts) | Plumbing shared by the commands that name plugins: the two-pass argv scan, flag schema, parse phase, help layout |
+| [`cli/src/commands/generate.ts`](../packages/cli/src/commands/generate.ts) | The `generate` command — reporter to storage |
+| [`cli/src/commands/store.ts`](../packages/cli/src/commands/store.ts) | The `store` command — a report file on disk to storage |
 | [`cli/src/args.ts`](../packages/cli/src/args.ts) | Flag definitions, coercion, alias/collision rules |
 | [`viewer/src/config/resolve.ts`](../packages/viewer/src/config/resolve.ts) | Settling module arguments, flags, the config file and defaults |
 | [`viewer/src/registry.ts`](../packages/viewer/src/registry.ts) | Loading the viewer's plugins and running their parse phase |
@@ -71,9 +78,10 @@ parameter, since a user-facing error type belongs to the host that prints it —
 
 The full set of valid flags is not known until the plugins named by
 `--reporter` and `--storage` have been loaded — and those names are themselves
-arguments. So `generate` parses twice: a lenient pass reads only those two
-flags, the plugins load, then a strict pass validates everything against the
-merged schema.
+arguments. So a command parses twice: a lenient pass reads only the role flags,
+the plugins load, then a strict pass validates everything against the merged
+schema. Both `generate` and `store` work this way, through the same helpers in
+[`cli/src/commands/plugin-command.ts`](../packages/cli/src/commands/plugin-command.ts).
 
 The first pass deliberately misparses unknown flags and its results are thrown
 away. Only the second pass produces values that are used.
@@ -96,8 +104,8 @@ result, `isOptionsResult` for a host to check the one it got back.
 ### Read and write are separate capabilities
 
 `StoragePlugin` declares `store` and `fetch` as independent optional methods,
-and each host requires the one it uses: `orion generate` loads a backend with
-`store`, the viewer with `fetch`. A write-only backend (an artifact uploader) or
+and each host requires the one it uses: `orion generate` and `orion store` load
+a backend with `store`, the viewer with `fetch`. A write-only backend (an artifact uploader) or
 a read-only one (a mirror somebody else fills) is a legitimate plugin, and a
 backend missing the capability a host needs is rejected when it loads rather
 than at the first call. `WritableStoragePlugin` and `ReadableStoragePlugin`

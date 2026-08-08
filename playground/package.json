@@ -6,6 +6,7 @@
   "description": "Scratch project for running the CLI and viewer against each other",
   "scripts": {
     "generate": "orion generate --reporter ./reporters/demo.mjs --storage @orion/plugin-storage-filesystem --storage-path ./reports",
+    "store": "orion store --storage @orion/plugin-storage-filesystem --storage-path ./reports",
     "serve": "orion-viewer",
     "serve:https": "orion-viewer --tls-cert ./tls/cert.pem --tls-key ./tls/key.pem",
     "certs": "node ./scripts/make-certs.mjs",

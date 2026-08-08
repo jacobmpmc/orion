@@ -83,7 +83,7 @@ Comment the *why*, not the *what*. The code already says what it does.
 
 Non-obvious decisions deserve a note at the point they would look like mistakes:
 the deliberately lenient first parse in
-[`generate.ts`](../packages/cli/src/commands/generate.ts) and the `tokens: true`
+[`plugin-command.ts`](../packages/cli/src/commands/plugin-command.ts) and the `tokens: true`
 requirement in [`args.ts`](../packages/cli/src/args.ts) are both commented for
 this reason.
 

@@ -23,8 +23,12 @@ afterEach(() => {
 });
 
 describe("registry", () => {
-  it("exposes generate and help", () => {
-    expect(commands.map((command) => command.name).sort()).toEqual(["generate", "help"]);
+  it("exposes generate, store and help", () => {
+    expect(commands.map((command) => command.name).sort()).toEqual([
+      "generate",
+      "help",
+      "store",
+    ]);
   });
 
   it("finds a command by name", () => {
