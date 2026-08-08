@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { base } from "./api.js";
-import { route } from "./router.js";
-import { loadManifest } from "./state.js";
+import { useManifest } from "./composables/useManifest.js";
+import { useRoute } from "./composables/useRouter.js";
 import HomeView from "./views/HomeView.vue";
 import NotFoundView from "./views/NotFoundView.vue";
 import ReportView from "./views/ReportView.vue";
 
-void loadManifest();
+const route = useRoute();
+
+// Started here so the manifest is usually in flight before any view asks.
+void useManifest().load();
 </script>
 
 <template>

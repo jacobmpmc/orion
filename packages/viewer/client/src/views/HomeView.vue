@@ -1,48 +1,26 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { isReport } from "@orion/core";
 import ReportHost from "../ReportHost.vue";
-import { navigate, reportHref } from "../router.js";
-import { droppedReport, manifest, manifestError } from "../state.js";
+import { useDroppedReport } from "../composables/useDroppedReport.js";
+import { useManifest } from "../composables/useManifest.js";
+import { useRouter } from "../composables/useRouter.js";
+
+const { manifest, error: manifestError, connections } = useManifest();
+const { navigate, reportHref } = useRouter();
+const {
+  report: droppedReport,
+  error: dropError,
+  dragging,
+  handlers,
+  accept,
+} = useDroppedReport();
 
 const ids = ref<Record<string, string>>({});
-const dropError = ref<string | undefined>(undefined);
-const dragging = ref(false);
 
 function open(connection: string): void {
   const id = ids.value[connection]?.trim();
   if (id === undefined || id === "") return;
   navigate(reportHref(connection, id));
-}
-
-/**
- * Reads a dropped report in the browser. Nothing is uploaded: the server has no
- * endpoint that accepts a report, which is what keeps it stateless.
- */
-async function accept(file: File | undefined): Promise<void> {
-  dropError.value = undefined;
-  droppedReport.value = undefined;
-  if (file === undefined) return;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await file.text());
-  } catch {
-    dropError.value = `${file.name} is not valid JSON.`;
-    return;
-  }
-
-  if (!isReport(parsed)) {
-    dropError.value = `${file.name} is JSON, but not an Orion report.`;
-    return;
-  }
-
-  droppedReport.value = parsed;
-}
-
-function onDrop(event: DragEvent): void {
-  dragging.value = false;
-  void accept(event.dataTransfer?.files[0]);
 }
 
 function onPick(event: Event): void {
@@ -54,11 +32,11 @@ function onPick(event: Event): void {
   <section>
     <h2>Storage connections</h2>
     <p v-if="manifestError" class="notice">{{ manifestError }}</p>
-    <p v-else-if="manifest && manifest.connections.length === 0" class="notice">
+    <p v-else-if="manifest && connections.length === 0" class="notice">
       No storage connections are configured. Add some to the viewer's configuration file.
     </p>
     <ul v-else class="connections">
-      <li v-for="connection in manifest?.connections ?? []" :key="connection.name">
+      <li v-for="connection in connections" :key="connection.name">
         <strong>{{ connection.label }}</strong>
         <form @submit.prevent="open(connection.name)">
           <input
@@ -76,13 +54,7 @@ function onPick(event: Event): void {
 
   <section>
     <h2>Open a report file</h2>
-    <div
-      class="drop"
-      :class="{ dragging }"
-      @dragover.prevent="dragging = true"
-      @dragleave.prevent="dragging = false"
-      @drop.prevent="onDrop"
-    >
+    <div class="drop" :class="{ dragging }" v-on="handlers">
       <p>Drop a report JSON file here.</p>
       <label>
         or choose a file

@@ -1,6 +1,6 @@
-import { ref } from "vue";
-import type { Ref } from "vue";
-import { base } from "./api.js";
+import { computed, shallowRef } from "vue";
+import type { ComputedRef } from "vue";
+import { base } from "../api.js";
 
 export type Route =
   | { readonly name: "home" }
@@ -33,23 +33,46 @@ function parse(pathname: string): Route {
   return { name: "notFound" };
 }
 
-export const route: Ref<Route> = ref(parse(window.location.pathname));
+/**
+ * Module scope, and the `popstate` listener with it: there is exactly one
+ * browser history, so a per-component instance would only ever be a second view
+ * of the same thing. Nothing here is scoped to a component lifetime, which is
+ * why no listener is ever torn down.
+ */
+const current = shallowRef<Route>(parse(window.location.pathname));
 
 window.addEventListener("popstate", () => {
-  route.value = parse(window.location.pathname);
+  current.value = parse(window.location.pathname);
 });
 
-export function navigate(path: string): void {
+function navigate(path: string): void {
   const url = path.startsWith("/") ? path : `${base}${path}`;
   window.history.pushState(null, "", url);
-  route.value = parse(new URL(url, window.location.origin).pathname);
+  current.value = parse(new URL(url, window.location.origin).pathname);
 }
 
 /** Builds the link a CI job would print for a stored report. */
-export function reportHref(connection: string, id: string): string {
+function reportHref(connection: string, id: string): string {
   const encodedId = id
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
   return `${base}r/${encodeURIComponent(connection)}/${encodedId}`;
+}
+
+const route = computed(() => current.value);
+
+export interface UseRouter {
+  readonly route: ComputedRef<Route>;
+  readonly navigate: (path: string) => void;
+  readonly reportHref: (connection: string, id: string) => string;
+}
+
+export function useRouter(): UseRouter {
+  return { route, navigate, reportHref };
+}
+
+/** The read-only half, for components that render a route but never change it. */
+export function useRoute(): ComputedRef<Route> {
+  return route;
 }

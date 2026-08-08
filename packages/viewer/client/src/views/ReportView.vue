@@ -1,40 +1,17 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import type { Report } from "@orion/core";
-import { ApiError, getReport } from "../api.js";
 import ReportHost from "../ReportHost.vue";
-import { loadManifest, manifest } from "../state.js";
+import { useManifest } from "../composables/useManifest.js";
+import { useReport } from "../composables/useReport.js";
 
 const props = defineProps<{ connection: string; id: string }>();
 
-const report = ref<Report | undefined>(undefined);
-const error = ref<string | undefined>(undefined);
-const loading = ref(true);
+const { report, error, loading } = useReport(
+  () => props.connection,
+  () => props.id,
+);
 
-async function load(): Promise<void> {
-  loading.value = true;
-  error.value = undefined;
-  report.value = undefined;
-
-  // The manifest decides which plugin renders the result, so it has to be there
-  // before the report is handed to ReportHost.
-  await loadManifest();
-
-  try {
-    report.value = await getReport(props.connection, props.id);
-  } catch (cause) {
-    error.value =
-      cause instanceof ApiError ? cause.message : `Could not reach the viewer: ${String(cause)}`;
-  } finally {
-    loading.value = false;
-  }
-}
-
-watch(() => [props.connection, props.id], () => void load(), { immediate: true });
-
-/** Listed in the empty state so it is obvious what the viewer *can* render. */
-const knownKinds = (): string =>
-  [...new Set((manifest.value?.viewers ?? []).flatMap((viewer) => viewer.reports))].join(", ");
+/** Empty when no plugin can render anything, which is worth saying out loud. */
+const { kinds } = useManifest();
 </script>
 
 <template>
@@ -45,7 +22,7 @@ const knownKinds = (): string =>
     <p v-if="loading">Loading…</p>
     <p v-else-if="error" class="notice">{{ error }}</p>
     <template v-else-if="report">
-      <p v-if="knownKinds() === ''" class="notice">
+      <p v-if="kinds.length === 0" class="notice">
         No viewer plugins are configured, so there is nothing to render this report with.
       </p>
       <ReportHost :report="report" :source="{ connection, id }" />
