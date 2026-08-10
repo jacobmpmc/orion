@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ReporterContext, StorageContext } from "@orion/core";
+import type { Report, ReporterContext, StorageContext } from "@orion/core";
 import { generateCommand } from "../src/commands/generate.js";
 
 function fixture(name: string): string {
@@ -15,7 +15,7 @@ const STORAGE = fixture("storage.mjs");
 type FixtureOptions = Record<string, unknown>;
 
 type RecordedCall =
-  | { role: "reporter"; context: ReporterContext<FixtureOptions> }
+  | { role: "reporter"; context: ReporterContext<FixtureOptions>; report?: Report }
   | { role: "storage"; context: StorageContext<FixtureOptions> };
 
 interface RunResult {
@@ -65,7 +65,10 @@ afterEach(() => {
 });
 
 describe("generate", () => {
-  const base = [
+  // --no-metadata by default: these tests are about option routing, and
+  // collecting provenance would spawn a handful of git processes per case for
+  // nothing. The metadata block below opts back in deliberately.
+  const plugins = [
     "--reporter",
     REPORTER,
     "--storage",
@@ -77,6 +80,7 @@ describe("generate", () => {
     "--bucket",
     "my-bucket",
   ];
+  const base = [...plugins, "--no-metadata"];
 
   it("runs the reporter then the storage plugin and reports where it landed", async () => {
     const result = await run([...base, "a.json"]);
@@ -278,6 +282,101 @@ describe("generate", () => {
 
       expect(result.code).toBe(1);
       expect(result.stderr).toMatch(/returned an invalid result from parseOptions/);
+    });
+  });
+
+  describe("metadata", () => {
+    // These tests run inside a git checkout, and possibly inside GitHub
+    // Actions, so nothing here asserts on the git or ci namespaces -- their
+    // contents depend on the machine. Provider detection is covered by the pure
+    // tests in metadata.test.ts.
+    it("stamps the stored report with when it was collected", async () => {
+      const result = await run([...plugins, "a.json"]);
+
+      const metadata = storageCall(result.calls).report.metadata;
+      expect(typeof metadata?.collectedAt).toBe("string");
+      expect(Number.isNaN(Date.parse(metadata?.collectedAt ?? ""))).toBe(false);
+    });
+
+    it("attaches nothing at all with --no-metadata", async () => {
+      const result = await run([...base, "a.json"]);
+
+      expect(storageCall(result.calls).report).not.toHaveProperty("metadata");
+    });
+
+    it("records --metadata entries under custom", async () => {
+      const result = await run([
+        ...plugins,
+        "--metadata",
+        "deploy-env=staging",
+        "--metadata",
+        "ticket=OPS-12",
+        "a.json",
+      ]);
+
+      expect(storageCall(result.calls).report.metadata?.custom).toEqual({
+        "deploy-env": "staging",
+        ticket: "OPS-12",
+      });
+    });
+
+    it("keeps everything after the first = in the value", async () => {
+      const result = await run([...plugins, "--metadata", "args=--depth=3", "a.json"]);
+
+      expect(storageCall(result.calls).report.metadata?.custom).toEqual({ args: "--depth=3" });
+    });
+
+    it("does not modify the report the reporter returned", async () => {
+      const result = await run(["--reporter", fixture("reporter-frozen.mjs"), "--storage", STORAGE, "--storage-token", "s", "--bucket", "b", "a.json"]);
+
+      const returned = result.calls.find((call) => call.role === "reporter")?.report;
+      expect(returned).not.toHaveProperty("metadata");
+      expect(storageCall(result.calls).report).not.toBe(returned);
+      expect(storageCall(result.calls).report.metadata).toBeDefined();
+    });
+
+    it("replaces the namespaces it collects and keeps the reporter's own", async () => {
+      const result = await run([
+        "--reporter",
+        fixture("reporter-metadata.mjs"),
+        "--storage",
+        STORAGE,
+        "--storage-token",
+        "s",
+        "--bucket",
+        "b",
+        "--metadata",
+        "origin=cli",
+        "a.json",
+      ]);
+
+      const metadata = storageCall(result.calls).report.metadata;
+      expect(metadata?.custom).toEqual({ origin: "cli" });
+      expect(metadata?.["fixture"]).toEqual({ note: "kept" });
+      expect(metadata?.collectedAt).not.toBe("1999-01-01T00:00:00.000Z");
+    });
+
+    it("fails on a --metadata value that is not a pair, before running anything", async () => {
+      const result = await run([...plugins, "--metadata", "oops", "a.json"]);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("key=value");
+      expect(result.calls).toHaveLength(0);
+    });
+
+    it("fails on a --metadata key that is not usable", async () => {
+      const result = await run([...plugins, "--metadata", "not a key=x", "a.json"]);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("is not usable");
+    });
+
+    it("fails when --metadata is combined with --no-metadata", async () => {
+      const result = await run([...base, "--metadata", "a=1", "a.json"]);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("cannot be combined");
+      expect(result.calls).toHaveLength(0);
     });
   });
 

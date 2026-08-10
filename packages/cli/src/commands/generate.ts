@@ -1,5 +1,7 @@
+import { withMetadata } from "@orion/core";
 import type { OptionSpec } from "@orion/core";
 import { CliError, parseFlags, type FlagDef } from "../args.js";
+import { collectMetadata, parseCustomEntries } from "../metadata/index.js";
 import { loadReporter, loadStorage } from "../plugins.js";
 import {
   assertNoIssues,
@@ -21,9 +23,28 @@ const REPORTER_SPEC: OptionSpec = {
   required: true,
 };
 
+const METADATA_SPEC: OptionSpec = {
+  name: "metadata",
+  type: "string",
+  description: "Extra metadata entry as key=value",
+  multiple: true,
+};
+
+// Named `no-metadata` outright rather than relying on a negation convention:
+// node's parseArgs has no `--no-` handling of its own (that is yargs and
+// commander), so this is an ordinary boolean flag whose name happens to read
+// like one.
+const NO_METADATA_SPEC: OptionSpec = {
+  name: "no-metadata",
+  type: "boolean",
+  description: "Skip collecting git and CI metadata",
+};
+
 const CORE_DEFS: readonly FlagDef[] = [
   { flag: "reporter", target: "reporter", spec: REPORTER_SPEC },
   STORAGE_DEF,
+  { flag: "metadata", target: "metadata", spec: METADATA_SPEC },
+  { flag: "no-metadata", target: "no-metadata", spec: NO_METADATA_SPEC },
   HELP_DEF,
 ];
 
@@ -38,6 +59,10 @@ export const generateCommand: Command = {
     "",
     "Run 'orion generate --reporter <pkg> --storage <pkg> --help' to list the",
     "options contributed by a specific pair of plugins.",
+    "",
+    "The report is stamped with the commit, branch, remotes and CI run it was",
+    "generated from. Nothing is collected that git or the environment does not",
+    "already provide, and --no-metadata turns it off entirely.",
   ].join("\n"),
 
   run(argv) {
@@ -78,6 +103,24 @@ export const generateCommand: Command = {
         );
       }
 
+      const skipMetadata = values["no-metadata"] === true;
+      const raw = Array.isArray(values["metadata"])
+        ? (values["metadata"] as readonly string[])
+        : [];
+
+      // Both checks happen before a plugin is loaded, matching how the rest of
+      // this command works: a typo should cost nothing and leave nothing behind.
+      if (skipMetadata && raw.length > 0) {
+        throw new CliError(
+          "--metadata cannot be combined with --no-metadata; drop one of the two.",
+        );
+      }
+
+      const custom = parseCustomEntries(raw);
+      if (custom.issues.length > 0) {
+        throw new CliError(custom.issues.join("\n"));
+      }
+
       const reporter = await loadReporter(reporterPkg);
       const storage = await loadStorage(storagePkg);
 
@@ -92,12 +135,24 @@ export const generateCommand: Command = {
         options: reporterOptions.options,
       });
 
+      // Provenance is attached here rather than in the reporter: every report
+      // should carry the same facts whichever plugin produced it, and a reporter
+      // author should not have to reimplement `git rev-parse` to get them.
+      // Collection runs after generate, so a reporter failure costs nothing, and
+      // collectMetadata never rejects -- a missing git is a missing field.
+      const stored = skipMetadata
+        ? report
+        : withMetadata(
+            report,
+            await collectMetadata({ cwd: process.cwd(), env: process.env, custom: custom.entries }),
+          );
+
       const result = await storage.store({
-        report,
+        report: stored,
         options: storageOptions.options,
       });
 
-      printStored(report, result);
+      printStored(stored, result);
       return 0;
     });
   },

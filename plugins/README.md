@@ -84,6 +84,12 @@ The loader checks `kind`, `parseOptions` and whichever methods the host needs at
 runtime, so a mistyped or mismatched package fails with a clear error rather
 than a stack trace.
 
+A reporter builds the envelope but not `Report.metadata`: the CLI attaches the
+commit, branch, remotes and CI run *after* `generate` returns. Do not collect any
+of that yourself, and do not expect the field to be present — a report may have
+been generated with `--no-metadata`. Setting a namespace of your own on
+`metadata` is fine; only `git`, `ci` and `custom` are replaced.
+
 ## Writing a viewer plugin
 
 A viewer plugin is the odd one out: the host never calls it. Rendering happens
@@ -124,6 +130,14 @@ The contract is DOM-only on purpose: use any framework you like internally
 without having to match the host app's version of it. Return the unmount
 synchronously or as a promise; the host calls it before mounting anything else,
 and tolerates it throwing.
+
+The whole report is in hand, metadata included. The viewer already draws the
+commit, branch and CI run above your mount point, so there is no need to repeat
+them — but when that context belongs *inside* your rendering (a diff annotated
+with the branch it came from, say), read it with `gitMetadata`, `ciMetadata` or
+`customMetadata` from `@orion/core` rather than touching `report.metadata`. A
+dropped report is arbitrary user JSON, and the helpers already treat a
+wrong-typed field as absent.
 
 Bundle everything the view needs **into** that file — inline its CSS and assets
 rather than emitting absolute URLs, since a viewer mounted under a `basePath`

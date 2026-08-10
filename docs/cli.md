@@ -29,6 +29,8 @@ orion generate --reporter <package> --storage <package> [options] <file|glob...>
 | --- | --- |
 | `--reporter <package>` | Reporter plugin that builds the report. Required |
 | `--storage <package>` | Storage plugin that persists it. Required. Must implement `store` — a read-only backend is a valid plugin but not usable here |
+| `--metadata <key=value>` | Extra metadata entry. Repeatable |
+| `--no-metadata` | Skip collecting git and CI metadata entirely |
 | `--help` | Usage, including options contributed by the named plugins |
 
 Positional arguments are file names or glob patterns, passed to the reporter
@@ -98,6 +100,69 @@ An issue naming an option is printed as the canonical flag; one that spans
 several is attributed to the plugin instead. Nothing has been generated or
 stored by this point, so a run that fails here leaves nothing behind.
 
+### Report metadata
+
+After the reporter returns and before storage is called, `generate` stamps the
+report with where it came from, under `Report.metadata`:
+
+```json
+{
+  "collectedAt": "2026-08-10T09:31:02.145Z",
+  "git": {
+    "commit": "c1077487…",
+    "branch": "main",
+    "subject": "Add the store command",
+    "author": "Ada Lovelace",
+    "committedAt": "2026-08-10T09:12:44.000Z",
+    "dirty": false,
+    "remotes": [{ "name": "origin", "url": "https://github.com/acme/orion.git" }]
+  },
+  "ci": {
+    "provider": "github-actions",
+    "repository": "acme/orion",
+    "runId": "12345",
+    "runUrl": "https://github.com/acme/orion/actions/runs/12345",
+    "pullRequest": 42,
+    "pullRequestUrl": "https://github.com/acme/orion/pull/42"
+  },
+  "custom": { "deploy-env": "staging" }
+}
+```
+
+The CLI collects it, not the reporter: a reporter author should not have to
+reimplement `git rev-parse`, and every report should carry the same facts
+whichever plugin produced it. Reporters neither populate nor depend on the field.
+
+**git** comes from running `git` in the working directory — the real binary,
+because worktrees, packed refs and detached HEAD are cases it already gets right.
+`branch` is absent on a detached HEAD, which is the normal state of a CI
+checkout; `refName` under `ci` usually covers it. The author's *name* is
+recorded, never their email.
+
+**ci** is read from environment variables, from an explicit allowlist per
+provider — GitHub Actions, GitLab CI, and a thin generic reader for anything else
+that sets `CI` (Jenkins and CircleCI values included). Nothing is copied by
+pattern: GitLab keeps `CI_JOB_TOKEN` and `CI_REGISTRY_PASSWORD` in the same
+namespace as everything useful.
+
+**custom** holds `--metadata key=value` entries. The value keeps everything after
+the first `=`, so `--metadata args=--depth=3` works. Keys are letters, digits,
+`.`, `_` and `-`. At most 32 entries, values up to 1 KiB. `--metadata` together
+with `--no-metadata` is an error rather than a silent no-op, and a malformed pair
+fails before any plugin runs.
+
+Credentials embedded in a remote URL are redacted — a GitLab runner rewrites
+`origin` to `https://gitlab-ci-token:<token>@…`, and a report is a file people
+share. It is best-effort, not a guarantee.
+
+**Collection failures are silent by design.** No git installed, not a
+repository, no commits yet, an unfamiliar CI: each of those leaves a field or a
+whole namespace absent. A report that generated successfully still gets stored.
+`collectedAt` is always set when collection ran, which is what distinguishes
+"collected, found nothing" from "never collected" — a report generated with
+`--no-metadata`, or by a version of orion that predates this, has no `metadata`
+key at all.
+
 ## `orion store`
 
 ```
@@ -126,6 +191,10 @@ that is not a report is rejected rather than persisted. `data` is not inspected
 — only the reporter that produced it and the viewer plugin that renders it know
 its shape. A leading byte-order mark is tolerated.
 
+The file is stored exactly as written, metadata included. `store` collects none
+of its own: the machine uploading a report is often not the one that generated
+it, and describing the uploader would be worse than saying nothing.
+
 Option resolution and the parse phase work exactly as they do for `generate`,
 with only the `storage` role in play. With no reporter competing for them, the
 storage plugin's options always get their bare aliases as well as the canonical
@@ -147,8 +216,9 @@ file:///…/reports/pulumi-diff-20260806T093000Z-1f4c2a.json
 
 `0` on success. `1` for any user-facing failure: unknown command, unknown or
 malformed option, a missing required option, an option a plugin rejected, no
-input files, a report file that cannot be read or is not a report, or a plugin
-that cannot be loaded or is of the wrong role. Failures print to stderr prefixed
+input files, a `--metadata` argument that is not a usable `key=value`, a report
+file that cannot be read or is not a report, or a plugin that cannot be loaded or
+is of the wrong role. Failures print to stderr prefixed
 with the command name.
 
 Unexpected errors are not caught and surface as a normal Node stack trace.

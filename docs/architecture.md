@@ -72,6 +72,12 @@ viewer plugin's bundle inlines `@orion/core` and its report-kind package, so one
 `node:fs` import in either would break every viewer plugin's build. That is why
 `expandInputs` and friends are a separate package instead of a core subpath.
 
+Report metadata is split along the same line. The *readers* are in core, because
+a viewer plugin has to read a report's provenance in a browser; the *collection*
+is in [`cli/src/metadata/`](../packages/cli/src/metadata), because it spawns
+`git`. It is not in `@orion/plugin-toolkit` either: that package is for plugins,
+hosts deliberately do not depend on it, and nothing but `orion generate` collects.
+
 A report kind's schema gets its own package because it is a contract between a
 reporter and a viewer — two separately installed packages that must agree, and
 would otherwise each keep a copy that drifts. It is not core's business: core
@@ -87,6 +93,7 @@ produced it.
 | [`core/src/results.ts`](../packages/core/src/results.ts) | `ok`, `invalid`, `isOptionsResult` — building and checking that result |
 | [`core/src/reports.ts`](../packages/core/src/reports.ts) | `isReport`, `canStore`, `canFetch` — checking a report and narrowing a backend |
 | [`core/src/values.ts`](../packages/core/src/values.ts) | `stringOption`, `numberOption`, `booleanOption`, `listOption` — reading raw option values |
+| [`core/src/metadata.ts`](../packages/core/src/metadata.ts) | `gitMetadata`, `ciMetadata`, `customMetadata`, `withMetadata` — the stable way to read a report's provenance |
 | [`host/src/plugins.ts`](../packages/host/src/plugins.ts) | Resolves, imports and shape-checks a plugin package |
 | [`plugin-toolkit/src/inputs.ts`](../packages/plugin-toolkit/src/inputs.ts) | `expandInputs` — the glob expansion the reporter contract puts on the plugin |
 | [`report-test-results/src/schema.ts`](../packages/report-test-results/src/schema.ts) | The `test-results` shape, commented field by field |
@@ -98,6 +105,7 @@ produced it.
 | [`cli/src/commands/generate.ts`](../packages/cli/src/commands/generate.ts) | The `generate` command — reporter to storage |
 | [`cli/src/commands/store.ts`](../packages/cli/src/commands/store.ts) | The `store` command — a report file on disk to storage |
 | [`cli/src/args.ts`](../packages/cli/src/args.ts) | Flag definitions, coercion, alias/collision rules |
+| [`cli/src/metadata/`](../packages/cli/src/metadata) | Collecting a report's provenance: `git.ts` shells out to git, `ci.ts` reads a provider's environment, `redact.ts` strips credentials from remote URLs |
 | [`viewer/src/config/resolve.ts`](../packages/viewer/src/config/resolve.ts) | Settling module arguments, flags, the config file and defaults |
 | [`viewer/src/registry.ts`](../packages/viewer/src/registry.ts) | Loading the viewer's plugins and running their parse phase |
 | [`viewer/src/server.ts`](../packages/viewer/src/server.ts) | `createServer` / `startServer`, HTTP vs HTTPS |

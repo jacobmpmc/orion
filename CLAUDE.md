@@ -70,9 +70,11 @@ it runs.
   `ReporterPlugin`, `StoragePlugin`, `ViewerPlugin`, `Report`, `OptionSpec`,
   `OptionsResult`. Mostly types; the runtime code is the result helpers in
   [`src/results.ts`](packages/core/src/results.ts), the option readers in
-  [`src/values.ts`](packages/core/src/values.ts) (`stringOption`, …) and the
+  [`src/values.ts`](packages/core/src/values.ts) (`stringOption`, …), the
   guards in [`src/reports.ts`](packages/core/src/reports.ts) (`isReport`,
-  `canStore`, `canFetch`). Zero dependencies, and importable from a browser
+  `canStore`, `canFetch`) and the metadata readers in
+  [`src/metadata.ts`](packages/core/src/metadata.ts) (`gitMetadata`,
+  `ciMetadata`, `customMetadata`, `withMetadata`). Zero dependencies, and importable from a browser
   bundle — a viewer plugin's bundle inlines it, so this is a hard constraint,
   not a preference.
 - **`@orion/host`** ([`packages/host`](packages/host)) — resolving, importing
@@ -212,6 +214,14 @@ name; they stay on separate targets and neither sees the other's values.
   paths — do not "fix" them. The exception is
   `plugins/reporter-vitest/test/fixtures/`, which is JSON *data*; `real-run.json`
   is captured from an actual vitest run and its README says how to recapture it.
+- **Report metadata is collected by the CLI, not by the reporter.**
+  `orion generate` shells out to `git`, reads the CI environment and attaches the
+  result at [`src/metadata/`](packages/cli/src/metadata) after `generate`
+  returns; `orion store` collects nothing. Every collector swallows its own
+  failures, and `collectMetadata` never rejects — that is deliberate, not a
+  swallowed error: metadata is context, and a report that generated fine still
+  has to be stored on a machine with no git. The reader side is in core so a
+  viewer plugin can use it in a browser.
 - **A plugin's runtime errors reach the user as a stack trace.** The CLI catches
   only `CliError`, so anything a reporter or storage plugin throws is unwrapped.
   Write those messages as prose for the person who typed the command.

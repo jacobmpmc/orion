@@ -231,6 +231,28 @@ The home page accepts a report JSON file by drop or file picker. It is read with
 by the same plugin dispatch a stored report goes through. Nothing is uploaded,
 so a report from a storage backend this viewer has no connection to still opens.
 
+## Report metadata
+
+Above whatever a viewer plugin renders, the app draws a collapsed disclosure
+panel with the report's provenance: the commit, branch, tag and remotes it was
+generated from, the CI run and pull request it belongs to, and any
+`--metadata key=value` entries the person who generated it added. It renders for
+a report fetched from a connection and for one dropped into the page alike,
+because it lives in `ReportHost` rather than in either view.
+
+This is host chrome on purpose. Provenance is the same for every report kind, so
+a plugin should not have to draw its own version of it, and a report whose kind
+no plugin claims still shows where it came from. Plugins can read exactly the
+same values through `gitMetadata`, `ciMetadata`, `customMetadata` and
+`metadataCollectedAt` from `@orion/core` when the context belongs inside their
+own rendering — the whole `Report` is already in `ViewerMountContext`. Read
+through those helpers rather than reaching into `report.metadata`: a dropped
+report is whatever JSON the user had, and the helpers are what make a wrong-typed
+field read as absent instead of rendering as garbage.
+
+Only `http:` and `https:` values are ever turned into links, for the same
+reason.
+
 ## Theme tokens a viewer plugin may use
 
 The app defines these custom properties on `:root`, in light and dark. They are

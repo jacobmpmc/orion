@@ -89,6 +89,25 @@ describe("store", () => {
     expect(result.stdout).toContain("https://example.test/r/fixture-001");
   });
 
+  // 'store' uploads a file some earlier job produced. Collecting provenance
+  // here would describe the machine doing the upload rather than the one that
+  // generated the report, so the file passes through exactly as written.
+  it("passes a report's metadata through untouched", async () => {
+    const stamped = {
+      ...report,
+      metadata: { collectedAt: "2026-08-06T09:29:00.000Z", git: { branch: "main" } },
+    };
+    const path = await write("stamped.json", JSON.stringify(stamped));
+
+    expect(storageCall((await run([...base, path])).calls).report).toEqual(stamped);
+  });
+
+  it("does not add metadata to a report that has none", async () => {
+    const result = await run([...base, reportPath]);
+
+    expect(storageCall(result.calls).report).not.toHaveProperty("metadata");
+  });
+
   it("gives the storage plugin the bare alias, with no reporter to claim it", async () => {
     const result = await run([...base, reportPath]);
 

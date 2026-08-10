@@ -37,6 +37,18 @@ describe("isReport", () => {
     expect(isReport("report")).toBe(false);
     expect(isReport(undefined)).toBe(false);
   });
+
+  // The envelope check must stay indifferent to metadata: a report written
+  // before it existed has none, and one carrying nonsense there is still a
+  // report worth storing -- otherwise 'orion store' would reject a file the
+  // viewer renders perfectly well.
+  it("ignores metadata entirely", () => {
+    expect(isReport(report)).toBe(true);
+    expect(isReport({ ...report, metadata: { collectedAt: "2026-08-07T09:30:00.000Z" } })).toBe(true);
+    expect(isReport({ ...report, metadata: {} })).toBe(true);
+    expect(isReport({ ...report, metadata: 5 })).toBe(true);
+    expect(isReport({ ...report, metadata: null })).toBe(true);
+  });
 });
 
 function storage(methods: Partial<Pick<StoragePlugin, "store" | "fetch">>): StoragePlugin {
