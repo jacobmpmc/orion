@@ -1,0 +1,39 @@
+{
+  "numTotalTests": 2,
+  "numPassedTests": 1,
+  "numFailedTests": 1,
+  "startTime": 1786000001000,
+  "success": false,
+  "testResults": [
+    {
+      "assertionResults": [
+        {
+          "ancestorTitles": [],
+          "fullName": "two",
+          "status": "passed",
+          "title": "two",
+          "duration": 3,
+          "failureMessages": [],
+          "meta": {},
+          "tags": []
+        },
+        {
+          "ancestorTitles": [],
+          "fullName": "three",
+          "status": "failed",
+          "title": "three",
+          "duration": 5,
+          "failureMessages": ["Error: boom"],
+          "meta": {},
+          "tags": []
+        }
+      ],
+      "startTime": 1786000001100,
+      "endTime": 1786000009000,
+      "status": "failed",
+      "message": "",
+      "name": "/repo/src/two.test.ts"
+    }
+  ],
+  "coverageMap": null
+}

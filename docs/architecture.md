@@ -35,11 +35,15 @@ same second half of the pipeline, no reporter.
 
 | Package | Path | Role |
 | --- | --- | --- |
-| `@orion/core` | [`packages/core`](../packages/core) | Shared contracts. Types, plus the result helpers plugins and hosts share |
+| `@orion/core` | [`packages/core`](../packages/core) | Shared contracts. Types, plus the result helpers and option readers plugins and hosts share |
 | `@orion/host` | [`packages/host`](../packages/host) | Loading and validating plugin packages, shared by both hosts |
+| `@orion/plugin-toolkit` | [`packages/plugin-toolkit`](../packages/plugin-toolkit) | Node-side helpers for plugin authors: input expansion, JSON reading, path normalisation |
+| `@orion/report-test-results` | [`packages/report-test-results`](../packages/report-test-results) | The `test-results` report kind: schema, constants, guard |
 | `@orion/cli` | [`packages/cli`](../packages/cli) | The `orion` binary |
 | `@orion/viewer` | [`packages/viewer`](../packages/viewer) | The `orion-viewer` server and its Vue client |
+| `@orion/plugin-reporter-vitest` | [`plugins/reporter-vitest`](../plugins/reporter-vitest) | Reads `vitest --reporter=json` output into a `test-results` report |
 | `@orion/plugin-storage-filesystem` | [`plugins/storage-filesystem`](../plugins/storage-filesystem) | Stores and reads a report as one JSON file on disk |
+| `@orion/plugin-viewer-test-results` | [`plugins/viewer-test-results`](../plugins/viewer-test-results) | Renders `test-results` reports in the browser |
 
 The CLI and the viewer both depend on `@orion/core` and `@orion/host` via
 `workspace:*`. Plugins depend on `@orion/core` for their types and are loaded at
@@ -52,6 +56,28 @@ want drifting between them. It takes the host's error constructor as a
 parameter, since a user-facing error type belongs to the host that prints it —
 `CliError` and `ViewerError` are siblings, neither of which core should own.
 
+### Where shared code goes
+
+Four packages hold code more than one plugin needs, and one rule decides which:
+
+| Package | Holds | Constraint |
+| --- | --- | --- |
+| `@orion/core` | Contracts and **pure** helpers — `ok`, `invalid`, the option readers | Zero deps, browser-importable |
+| `@orion/report-test-results` | One report kind's schema and guard | Zero deps, browser-importable |
+| `@orion/plugin-toolkit` | Plugin-side helpers touching `node:fs` / `node:path` | Node only; plugins depend on it, hosts do not |
+| `@orion/host` | Host-side plugin loading | Hosts only |
+
+The browser-importable constraint is load-bearing rather than aspirational: a
+viewer plugin's bundle inlines `@orion/core` and its report-kind package, so one
+`node:fs` import in either would break every viewer plugin's build. That is why
+`expandInputs` and friends are a separate package instead of a core subpath.
+
+A report kind's schema gets its own package because it is a contract between a
+reporter and a viewer — two separately installed packages that must agree, and
+would otherwise each keep a copy that drifts. It is not core's business: core
+documents `Report.data` as opaque and `version` as owned by whichever reporter
+produced it.
+
 ## Key source files
 
 | File | What it holds |
@@ -60,7 +86,12 @@ parameter, since a user-facing error type belongs to the host that prints it —
 | [`core/src/options.ts`](../packages/core/src/options.ts) | `OptionSpec`, plus `OptionsResult` / `OptionIssue` — what a plugin's parse phase returns |
 | [`core/src/results.ts`](../packages/core/src/results.ts) | `ok`, `invalid`, `isOptionsResult` — building and checking that result |
 | [`core/src/reports.ts`](../packages/core/src/reports.ts) | `isReport`, `canStore`, `canFetch` — checking a report and narrowing a backend |
+| [`core/src/values.ts`](../packages/core/src/values.ts) | `stringOption`, `numberOption`, `booleanOption`, `listOption` — reading raw option values |
 | [`host/src/plugins.ts`](../packages/host/src/plugins.ts) | Resolves, imports and shape-checks a plugin package |
+| [`plugin-toolkit/src/inputs.ts`](../packages/plugin-toolkit/src/inputs.ts) | `expandInputs` — the glob expansion the reporter contract puts on the plugin |
+| [`report-test-results/src/schema.ts`](../packages/report-test-results/src/schema.ts) | The `test-results` shape, commented field by field |
+| [`reporter-vitest/src/map.ts`](../plugins/reporter-vitest/src/map.ts) | Vitest JSON → the schema: status folding, totals, merging shards |
+| [`viewer-test-results/browser/index.ts`](../plugins/viewer-test-results/browser/index.ts) | `mount` and the filter, in plain DOM |
 | [`cli/src/index.ts`](../packages/cli/src/index.ts) | Entry point and command dispatch |
 | [`cli/src/commands/index.ts`](../packages/cli/src/commands/index.ts) | Command registry — add new commands here |
 | [`cli/src/commands/plugin-command.ts`](../packages/cli/src/commands/plugin-command.ts) | Plumbing shared by the commands that name plugins: the two-pass argv scan, flag schema, parse phase, help layout |
@@ -127,13 +158,14 @@ Plugins may contribute **named** arguments only; positionals are reserved.
 
 ## What is not built yet
 
-- **No reporter plugin.** `plugins/` holds the filesystem storage plugin only,
-  so `generate` has somewhere to put a report but nothing to build one. The
-  Pulumi diff reporter is the MVP target per [`REQUIREMENTS.md`](../REQUIREMENTS.md).
-- **No viewer plugin.** The viewer app, its plugin contract and its bundle
-  serving exist, but nothing yet implements the `viewer` role, so a fetched
-  report reaches an empty state rather than a rendering.
+- **No Pulumi diff reporter.** All three roles now have a working
+  implementation, end to end, via the vitest reporter and the `test-results`
+  viewer — but the Pulumi diff reporter is still the MVP target per
+  [`REQUIREMENTS.md`](../REQUIREMENTS.md).
 - **No stdin input.** Requirement 2 allows piped input; `generate` currently
   errors when given no positionals.
+- **A plugin's runtime failures are not caught.** The CLI's error boundary only
+  handles its own `CliError`, so "no files matched" from a reporter reaches the
+  user as a stack trace rather than a one-line message.
 - **No authentication** anywhere in the viewer. See [Viewer](viewer.md#authentication).
 - **No linter or formatter.**

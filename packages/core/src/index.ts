@@ -7,6 +7,7 @@ export type {
   OptionsResult,
 } from "./options.js";
 export { invalid, isOptionIssue, isOptionsResult, ok } from "./results.js";
+export { booleanOption, listOption, numberOption, stringOption } from "./values.js";
 export { canFetch, canStore, isReport } from "./reports.js";
 export type {
   FetchContext,

@@ -20,7 +20,8 @@
     "test:types": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
-    "@orion/core": "workspace:*"
+    "@orion/core": "workspace:*",
+    "@orion/plugin-toolkit": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

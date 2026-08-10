@@ -1,13 +1,15 @@
 /**
- * A stand-in reporter, so the playground has something to generate.
+ * A stand-in reporter, kept for the one thing a real one cannot show.
  *
- * No reporter plugin exists in the workspace yet (the Pulumi diff one is the
- * MVP target), and `orion generate` requires one. This is the minimum that
- * satisfies the contract: it reads nothing and reports the patterns it was
- * handed, which is enough to exercise the whole path from the CLI through
- * storage and back out of the viewer.
+ * `@orion/plugin-reporter-vitest` is the reporter to look at now; this is the
+ * minimum that satisfies the contract, reading nothing and reporting the
+ * patterns it was handed. What earns it its place is the `demo` kind: no viewer
+ * plugin claims it, so `pnpm generate` is how you see what a report the viewer
+ * has never heard of looks like. Dispatch is per `Report.kind`, and the empty
+ * state is a real state worth having seen.
  *
- * Delete it the moment a real reporter lands.
+ * It is also the smallest complete example of the plugin contract, in one file
+ * with no build step.
  */
 export default {
   kind: "reporter",

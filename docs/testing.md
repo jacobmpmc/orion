@@ -1,8 +1,8 @@
 # Testing
 
 [Vitest](https://vitest.dev) powers the tests. Every package has them —
-`@orion/core` covers its result helpers, which are the only runtime code it
-carries.
+`@orion/core` covers its result helpers and option readers, which are the only
+runtime code it carries.
 
 ```sh
 pnpm test                              # every package that defines a test script
@@ -42,7 +42,17 @@ Tests live in `test/` rather than beside the source because the build
 | [`commands.test.ts`](../packages/cli/test/commands.test.ts) | Command registry and help rendering |
 | [`core/test/results.test.ts`](../packages/core/test/results.test.ts) | `ok`, `invalid`, `isOptionIssue`, `isOptionsResult` |
 | [`core/test/reports.test.ts`](../packages/core/test/reports.test.ts) | `isReport`, and narrowing a backend with `canStore` / `canFetch` |
+| [`core/test/values.test.ts`](../packages/core/test/values.test.ts) | The option readers, including values a config file can supply uncoerced |
 | [`host/test/plugins.test.ts`](../packages/host/test/plugins.test.ts) | Resolution order, every rejection path, per-host capability checks |
+| [`plugin-toolkit/test/inputs.test.ts`](../packages/plugin-toolkit/test/inputs.test.ts) | Literal paths vs globs, dedupe, ordering, matching nothing |
+| [`plugin-toolkit/test/files.test.ts`](../packages/plugin-toolkit/test/files.test.ts) | `readJsonFile`, its two distinct failures, and the BOM |
+| [`plugin-toolkit/test/paths.test.ts`](../packages/plugin-toolkit/test/paths.test.ts) | Separator normalisation, relativising, containment |
+| [`report-test-results/test/guard.test.ts`](../packages/report-test-results/test/guard.test.ts) | `isTestResults` against every missing and mistyped field |
+| [`reporter-vitest/test/options.test.ts`](../plugins/reporter-vitest/test/options.test.ts) | The parse phase and each issue it reports |
+| [`reporter-vitest/test/map.test.ts`](../plugins/reporter-vitest/test/map.test.ts) | Status folding, recomputed totals, relativising, merging shards, and a real captured run |
+| [`reporter-vitest/test/generate.test.ts`](../plugins/reporter-vitest/test/generate.test.ts) | The envelope, glob expansion, and every read failure |
+| [`viewer-test-results/test/model.test.ts`](../plugins/viewer-test-results/test/model.test.ts) | The guard, the filter predicate, formatting, the summary |
+| [`viewer-test-results/test/plugin.test.ts`](../plugins/viewer-test-results/test/plugin.test.ts) | The plugin object, and that `bundle` resolves beside its own module |
 | [`storage-filesystem/test/store.test.ts`](../plugins/storage-filesystem/test/store.test.ts) | Both phases of the filesystem storage plugin |
 | [`storage-filesystem/test/fetch.test.ts`](../plugins/storage-filesystem/test/fetch.test.ts) | Reading a report back, misses, and containment |
 | [`viewer/test/config.test.ts`](../packages/viewer/test/config.test.ts) | Discovery, precedence, validation messages, option collection |
@@ -68,6 +78,15 @@ bundle that was never built) are deliberately invalid — do not "fix" them.
 The viewer's fixtures also include a `client/` directory standing in for a Vite
 build, so the static handler is testable without anyone having run one.
 
+`plugins/reporter-vitest/test/fixtures/` is the exception: those are **JSON data
+files**, not modules — the input the plugin reads. `real-run.json` is captured
+from an actual vitest run, because the surest way for that plugin to break is a
+hand-written fixture drifting from what vitest emits; its README gives the
+command to recapture it. The hand-written ones alongside carry what a green run
+never produces: failures, `todo`, a collection error, and a status from a future
+vitest. They use `/repo/…` paths so the relativisation assertions hold on
+Windows and POSIX alike.
+
 ## Testing the server
 
 Viewer tests start a real server on port `0`, so the kernel assigns a free port
@@ -91,14 +110,30 @@ part of `pnpm test` today.
 It sets `composite: false` and `declaration: false` because a composite project
 may not disable emit.
 
-The viewer's browser client is a **third** typecheck entry point: `.vue` files
-need `vue-tsc`, and `client/tsconfig.json` sits outside the base config with its
-own DOM lib and bundler resolution. Neither `pnpm typecheck` nor `test:types`
-covers it.
+Browser sources are a **third** typecheck entry point, covered by neither
+`pnpm typecheck` nor `test:types`: they sit outside the base config with their
+own DOM lib and bundler resolution. Two packages have them now — the viewer's
+`.vue` client, which needs `vue-tsc`, and the test-results viewer plugin, which
+is plain `.ts` and so needs only `tsc`.
 
 ```sh
-pnpm --filter @orion/viewer test:types:client
+pnpm -r --if-present test:types:client
 ```
+
+## Testing a browser bundle
+
+A viewer plugin's DOM code is deliberately **not** unit tested. jsdom is not a
+dependency — it is heavyweight, a new catalog entry is subject to the
+release-age policy, and it would mostly cover `append` calls.
+
+Instead the logic worth testing is pushed into a DOM-free module
+(`browser/model.ts`) that runs under Node like anything else, and the package's
+`tsconfig.test.json` includes that one file from `browser/` so a DOM reference
+added to it fails the typecheck rather than quietly making the tests unrunnable.
+
+The wiring around it — mounting, filtering, unmounting, and that report text
+never becomes markup — is verified by loading the built bundle in a real
+browser. [`playground/README.md`](../playground/README.md) has the walkthrough.
 
 ## Conventions
 

@@ -1,15 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { invalid, isReport, ok } from "@orion/core";
+import { invalid, isReport, ok, stringOption } from "@orion/core";
 import type {
   OptionIssue,
-  OptionValues,
   ReadableStoragePlugin,
   Report,
   WritableStoragePlugin,
 } from "@orion/core";
+import { isContained, relativeTo } from "@orion/plugin-toolkit";
 
 const EXTENSION = ".json";
 
@@ -22,11 +22,6 @@ export interface FilesystemStorageOptions {
    * when a name should be generated per report.
    */
   readonly name?: string;
-}
-
-function stringOption(values: OptionValues, name: string): string | undefined {
-  const value = values[name];
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
 /** Reduces arbitrary text to something safe to embed in a file name. */
@@ -61,13 +56,7 @@ function defaultName(report: Report): string {
  */
 function target(root: string, name: string): { file: string; id: string } {
   const file = resolve(root, name);
-  return { file, id: relative(root, file).split(sep).join("/") };
-}
-
-/** True when `name` resolves to something inside `root` rather than beside or above it. */
-function isContained(root: string, name: string): boolean {
-  const rel = relative(root, resolve(root, name));
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  return { file, id: relativeTo(root, file) };
 }
 
 /**

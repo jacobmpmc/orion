@@ -29,12 +29,25 @@ void useManifest().load();
 </template>
 
 <style>
+/*
+ * These custom properties are a documented contract, not private styling: a
+ * viewer plugin's bundle mounts into this page and inherits them, which is what
+ * keeps two plugins from disagreeing about what "failed" looks like. Renaming
+ * one breaks every plugin that ever shipped. See docs/viewer.md.
+ *
+ * --ok / --warn / --danger are deliberately semantic rather than named for any
+ * one report kind: passed/todo/failed for a test report, created/changed/deleted
+ * for an infrastructure diff.
+ */
 :root {
   --bg: #fbfbfd;
   --fg: #1c1c22;
   --muted: #6a6a78;
   --line: #d8d8e0;
   --accent: #3b5bdb;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --danger: #cf222e;
   color-scheme: light dark;
 }
 
@@ -45,6 +58,9 @@ void useManifest().load();
     --muted: #9a9aa8;
     --line: #33333d;
     --accent: #91a7ff;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --danger: #f85149;
   }
 }
 

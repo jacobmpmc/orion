@@ -160,10 +160,35 @@ wherever the CLI itself is installed. A project-local plugin therefore wins over
 a globally installed one of the same name. An absolute path to a module file
 also works, which is what the tests use.
 
-## Trying `generate` without a published plugin
+## A worked `generate`
 
-No reporter plugin exists yet, so `generate` needs a local file for that half.
-Any `.mjs` module exporting a valid plugin works:
+The vitest reporter and the filesystem storage plugin make a complete run:
+
+```sh
+vitest run --reporter=json --outputFile results.json
+
+pnpm exec orion generate \
+  --reporter @orion/plugin-reporter-vitest \
+  --storage @orion/plugin-storage-filesystem \
+  --storage-path ./reports \
+  --reporter-root . \
+  results.json
+```
+
+```
+Stored test-results report as test-results-20260808T060129Z-6c0a1f.json
+file:///…/reports/test-results-20260808T060129Z-6c0a1f.json
+```
+
+Point a viewer with `@orion/plugin-viewer-test-results` at that same directory
+and the id in the first line is what the link uses. See
+[`plugins/reporter-vitest`](../plugins/reporter-vitest) for its options, and
+[`playground/README.md`](../playground/README.md) to run both halves.
+
+## Writing your own reporter
+
+A reporter does not have to be a published package — any `.mjs` module exporting
+a valid plugin works, which is the quickest way to try the contract:
 
 ```js
 // my-reporter.mjs

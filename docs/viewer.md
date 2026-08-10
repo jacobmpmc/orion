@@ -92,7 +92,7 @@ export default defineConfig({
       options: { path: "/var/orion/reports" },        // this plugin's own options
     },
   ],
-  viewers: [{ package: "@orion/plugin-viewer-pulumi-diff" }],
+  viewers: [{ package: "@orion/plugin-viewer-test-results" }],
 });
 ```
 
@@ -231,6 +231,39 @@ The home page accepts a report JSON file by drop or file picker. It is read with
 by the same plugin dispatch a stored report goes through. Nothing is uploaded,
 so a report from a storage backend this viewer has no connection to still opens.
 
+## Theme tokens a viewer plugin may use
+
+The app defines these custom properties on `:root`, in light and dark. They are
+a **contract**, not private styling: a plugin's bundle mounts into this page and
+inherits them, which is what stops two plugins disagreeing about what "failed"
+looks like. Renaming one breaks every plugin that ever shipped.
+
+| Token | Use |
+| --- | --- |
+| `--bg` / `--fg` | Page background and body text |
+| `--muted` | Secondary text; also the neutral status |
+| `--line` | Borders and rules |
+| `--accent` | Links and emphasis |
+| `--ok` | Passed, created, healthy |
+| `--warn` | Todo, changed, degraded |
+| `--danger` | Failed, deleted, error |
+
+The three status tokens are semantic rather than named for any one report kind,
+so a test report's passed/todo/failed and an infrastructure diff's
+created/changed/deleted use the same three colours. `color-scheme: light dark`
+is set on `:root`, so form controls follow the theme without a plugin doing
+anything.
+
+A plugin should use `var(--ok)` and friends directly rather than picking its
+own colours. Keeping a literal as a fallback — `var(--ok, #1a7f37)` — costs
+nothing and covers a host that predates a token.
+
+There is no Shadow DOM: a plugin's stylesheet is global. Scope every rule under
+one root class and prefix every class name, or a bare `pre { … }` will restyle
+the app around it. See
+[`plugins/viewer-test-results`](../plugins/viewer-test-results) for a worked
+example.
+
 ## Behind a reverse proxy
 
 `--base-path /orion` mounts everything under that prefix. Vite emits absolute
@@ -238,7 +271,16 @@ so a report from a storage backend this viewer has no connection to still opens.
 `window.__ORION_BASE__` is injected — one build works wherever it is mounted.
 
 A viewer plugin's browser bundle must be self-contained for the same reason:
-inline its CSS and assets rather than emitting absolute URLs of its own.
+inline its CSS and assets rather than emitting absolute URLs of its own. Only
+`/plugins/<viewerId>/bundle.js` is served — a sibling `style.css` or `.js.map`
+404s — so the bundle has to be exactly one file.
+[`plugins/viewer-test-results/vite.config.ts`](../plugins/viewer-test-results/vite.config.ts)
+is the pattern: a single-entry `build.lib`, no sourcemap, and the stylesheet
+carried as a string rather than imported.
+
+That bundle is also served `cache-control: immutable`, so a rebuild during
+development needs a hard refresh. The manifest is fetched once per page load,
+so adding a viewer plugin needs a viewer restart.
 
 ## HTTPS
 

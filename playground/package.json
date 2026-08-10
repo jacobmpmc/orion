@@ -7,14 +7,18 @@
   "scripts": {
     "generate": "orion generate --reporter ./reporters/demo.mjs --storage @orion/plugin-storage-filesystem --storage-path ./reports",
     "store": "orion store --storage @orion/plugin-storage-filesystem --storage-path ./reports",
+    "results": "pnpm --dir ../packages/cli exec vitest run --reporter=json --outputFile ../../playground/results/cli.json",
+    "test-report": "orion generate --reporter @orion/plugin-reporter-vitest --storage @orion/plugin-storage-filesystem --storage-path ./reports --storage-name tests.json --reporter-root ../packages/cli ./results/cli.json",
     "serve": "orion-viewer",
     "serve:https": "orion-viewer --tls-cert ./tls/cert.pem --tls-key ./tls/key.pem",
     "certs": "node ./scripts/make-certs.mjs",
-    "reset": "node -e \"require('node:fs').rmSync('reports',{recursive:true,force:true})\""
+    "reset": "node -e \"for (const d of ['reports','results']) require('node:fs').rmSync(d,{recursive:true,force:true})\""
   },
   "dependencies": {
     "@orion/cli": "workspace:*",
+    "@orion/plugin-reporter-vitest": "workspace:*",
     "@orion/plugin-storage-filesystem": "workspace:*",
+    "@orion/plugin-viewer-test-results": "workspace:*",
     "@orion/viewer": "workspace:*"
   }
 }

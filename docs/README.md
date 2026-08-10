@@ -24,14 +24,18 @@ or [Architecture](architecture.md) if you want to know how the pieces fit.
 | Location | What it is |
 | --- | --- |
 | [`REQUIREMENTS.md`](../REQUIREMENTS.md) | Product requirements the design answers to |
-| [`plugins/README.md`](../plugins/README.md) | Plugin authoring guide: roles, contract, the two phases, naming |
+| [`plugins/README.md`](../plugins/README.md) | Plugin authoring guide: roles, contract, the two phases, naming, what the workspace already gives you |
+| [`plugins/reporter-vitest/`](../plugins/reporter-vitest) | Turns `vitest --reporter=json` output into a `test-results` report |
 | [`plugins/storage-filesystem/`](../plugins/storage-filesystem) | Stores and reads a report as a JSON file on disk |
+| [`plugins/viewer-test-results/`](../plugins/viewer-test-results) | Renders `test-results` reports in the browser |
+| [`packages/plugin-toolkit/`](../packages/plugin-toolkit) | Node-side helpers for plugin authors |
+| [`packages/report-test-results/`](../packages/report-test-results) | The `test-results` report kind: schema and guard |
 | [`playground/`](../playground) | Scratch project for running the CLI and viewer against each other |
 | [`CLAUDE.md`](../CLAUDE.md) | Orientation for coding agents working in this repo |
 
 ## Status
 
-Early. The workspace, CLI skeleton, plugin contracts, test setup, one storage
-plugin and the viewer app exist. Not yet built: any reporter plugin, any viewer
-plugin, and stdin input for `generate`. See
-[Architecture](architecture.md#what-is-not-built-yet) for the current gaps.
+Early, but end to end: a real test run becomes a report, is stored, and is
+rendered in the browser, with one plugin per role. Not yet built: the Pulumi
+diff reporter that is the MVP target, stdin input for `generate`, and any
+authentication. See [Architecture](architecture.md#what-is-not-built-yet).

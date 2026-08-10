@@ -7,6 +7,12 @@ Third-party plugins live in their own repositories and are installed as ordinary
 npm packages; nothing here is privileged. This directory only holds the ones
 maintained alongside the CLI.
 
+| Package | Role | What it does |
+| --- | --- | --- |
+| [`reporter-vitest`](reporter-vitest) | reporter | `vitest --reporter=json` output → a `test-results` report |
+| [`storage-filesystem`](storage-filesystem) | storage | One JSON file per report under a directory |
+| [`viewer-test-results`](viewer-test-results) | viewer | Renders `test-results` reports in the browser |
+
 ## Roles
 
 A plugin declares exactly one role, so a CI/CD pipeline installs only the code
@@ -121,7 +127,15 @@ and tolerates it throwing.
 
 Bundle everything the view needs **into** that file — inline its CSS and assets
 rather than emitting absolute URLs, since a viewer mounted under a `basePath`
-will not rewrite them for you.
+will not rewrite them for you. The server serves only
+`/plugins/<id>/bundle.js`, so a second chunk or a sibling stylesheet 404s
+instead of loading: it has to be exactly one file.
+
+[`viewer-test-results`](viewer-test-results) is the worked example — a
+single-entry Vite `build.lib`, a stylesheet kept as a string rather than
+imported, and no framework at all. Its bundle is stat-ed when the **viewer
+starts**, not at the first request, so a plugin whose `build:client` has not run
+stops the server rather than one page.
 
 ## The two phases
 
@@ -171,6 +185,42 @@ Each option is always reachable as `--<role>-<name>`, and additionally as a bare
 safely declare the same option name; they stay on separate targets and each
 receives only its own values.
 
+## What the workspace gives you
+
+Before writing a helper, check whether it already exists — and if you write one
+another plugin would want, put it in the package it belongs to rather than
+leaving it stranded.
+
+| Package | Holds | Constraint |
+| --- | --- | --- |
+| `@orion/core` | Contracts, `ok` / `invalid`, and the option readers `stringOption`, `numberOption`, `booleanOption`, `listOption` | Zero deps, **browser-importable** |
+| [`@orion/plugin-toolkit`](../packages/plugin-toolkit) | `expandInputs`, `readJsonFile`, `posixPath`, `relativeTo`, `isContained` | Node only |
+| [`@orion/report-test-results`](../packages/report-test-results) | One report kind's types, constants and guard | Zero deps, browser-importable |
+
+The option readers save every `parseOptions` from re-implementing "a string, but
+only if it is really a string and not blank" — which matters because a value
+from the viewer's config file has not been coerced against the `OptionSpec` the
+way an argv value has:
+
+```ts
+import { booleanOption, invalid, ok, stringOption } from "@orion/core";
+
+const path = stringOption(values, "path");
+if (path === undefined) return invalid({ option: "path", message: "is required." });
+return ok({ root: resolve(path), verbose: booleanOption(values, "verbose") ?? false });
+```
+
+A **report kind's schema** gets its own package when a reporter and a viewer
+have to agree on it — see `@orion/report-test-results`. It does not go in
+`@orion/core`, where `Report.data` is deliberately opaque, and it does not live
+in the reporter, since a viewer plugin should never have to install Node
+file-reading code to learn a shape.
+
+For a viewer plugin's colours, use the **theme tokens** the app publishes
+(`--ok`, `--warn`, `--danger`, `--muted`, `--fg`, `--bg`, `--line`, `--accent`)
+rather than inventing your own — they are listed in
+[`docs/viewer.md`](../docs/viewer.md).
+
 ## Adding a plugin
 
 1. Create `plugins/<role>-<target>/` with a `package.json` and `tsconfig.json`,
@@ -180,3 +230,9 @@ receives only its own values.
 3. Add a project reference in the root `tsconfig.json` so `pnpm build` picks it
    up in dependency order.
 4. Run `pnpm install` to link it.
+
+A viewer plugin has a second build. Name its scripts exactly `build:client` and
+`clean:client` — the root `build` and `clean` run `pnpm -r --if-present` over
+those names, and a differently named script is simply never run. Add
+`test:types:client` too, since the browser sources are outside every other
+typecheck.

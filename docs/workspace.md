@@ -4,13 +4,18 @@ Configured in [`pnpm-workspace.yaml`](../pnpm-workspace.yaml).
 
 ```
 orion/
-├── packages/       # libraries and the two binaries
-│   ├── core/       # @orion/core   — shared contracts
-│   ├── host/       # @orion/host   — loading plugin packages
-│   ├── cli/        # @orion/cli    — the orion binary
-│   └── viewer/     # @orion/viewer — the orion-viewer binary and its Vue client
-├── plugins/        # base plugin packages (storage-filesystem so far)
-├── playground/     # @orion/playground — a scratch consumer of the binaries
+├── packages/                 # libraries and the two binaries
+│   ├── core/                 # @orion/core       — shared contracts and pure helpers
+│   ├── host/                 # @orion/host       — loading plugin packages
+│   ├── plugin-toolkit/       # @orion/plugin-toolkit — node-side helpers for plugin authors
+│   ├── report-test-results/  # @orion/report-test-results — the test-results schema
+│   ├── cli/                  # @orion/cli        — the orion binary
+│   └── viewer/               # @orion/viewer     — the orion-viewer binary and its Vue client
+├── plugins/                  # base plugin packages, one per role
+│   ├── reporter-vitest/
+│   ├── storage-filesystem/
+│   └── viewer-test-results/
+├── playground/               # @orion/playground — a scratch consumer of the binaries
 ├── docs/
 └── .vscode/
 ```

@@ -61,9 +61,9 @@ pnpm exec orion help
 pnpm exec orion help generate
 ```
 
-`orion generate` needs a reporter and a storage plugin, and no reporter exists
-yet. To exercise it today you need a local plugin file — see
-[CLI](cli.md#trying-generate-without-a-published-plugin).
+`orion generate` needs a reporter and a storage plugin. This repo ships both, so
+a real run is one command — see the worked example in
+[CLI](cli.md#a-worked-generate).
 
 `orion store` needs only a storage plugin, so it runs against a report file you
 write by hand:
@@ -76,20 +76,25 @@ pnpm exec orion store --storage @orion/plugin-storage-filesystem --path ./report
 ## The playground
 
 [`playground/`](../playground) is already wired up for exactly this: it depends
-on both binaries and the filesystem storage plugin, and carries a worked config
-and a stand-in reporter.
+on both binaries and all three plugins, and carries a worked viewer config.
 
 ```sh
-pnpm build          # from the repo root
+pnpm build          # from the repo root — both binaries, both browser bundles
 cd playground
-pnpm generate "src/**/*.ts"
+pnpm results        # run a real test suite, capturing vitest's JSON
+pnpm run test-report
 pnpm serve
 ```
 
-Open the printed URL, or go straight to the report `generate` named:
-`http://127.0.0.1:7317/r/local/<id>`. With no viewer plugin installed the report
-is fetched but reaches an empty state rather than a rendering — see
-[Viewer](viewer.md) and [`playground/README.md`](../playground/README.md).
+Open the printed URL, or go straight to the report the run named:
+`http://127.0.0.1:7317/r/local/tests.json`. See
+[`playground/README.md`](../playground/README.md) for what else is worth trying
+there, including what a report *nothing* renders looks like.
+
+**Build before serving.** A viewer plugin's browser bundle is a separate Vite
+build, and the viewer stats it at startup: after `tsc --build` alone the server
+refuses to start with *"Has the plugin been built?"*. `pnpm build` from the root
+runs both halves.
 
 ## Editor setup
 

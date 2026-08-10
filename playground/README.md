@@ -1,50 +1,88 @@
 # Playground
 
 A scratch project that consumes the workspace the way a real one would: it
-depends on `@orion/cli`, `@orion/viewer` and the filesystem storage plugin, so
-both binaries resolve here and plugins are found by name rather than by path.
+depends on `@orion/cli`, `@orion/viewer` and all three plugins, so both binaries
+resolve here and plugins are found by name rather than by path.
 
 Nothing here is part of the product. It exists to run the two halves of Orion
 against each other by hand.
 
 ```sh
-pnpm build                 # from the repo root: both binaries and the client
+pnpm build                 # from the repo root: binaries, client, plugin bundles
 cd playground
-pnpm generate "src/**/*.ts"
+pnpm results               # run a real suite, capturing vitest's JSON
+pnpm run test-report       # that JSON -> a stored test-results report
 pnpm serve
 ```
 
-Then open <http://127.0.0.1:7317>, or go straight to the id `generate` printed:
-`http://127.0.0.1:7317/r/local/<id>`.
+Then open <http://127.0.0.1:7317>, or go straight to
+<http://127.0.0.1:7317/r/local/tests.json>.
+
+**`pnpm build` from the root, not `tsc --build`.** The viewer plugin's browser
+bundle is a separate Vite build, and the viewer stats it at startup: without it
+the server refuses to start rather than failing on a page.
 
 ## What is here
 
 | Path | What it is |
 | --- | --- |
 | [`orion-viewer.config.js`](orion-viewer.config.js) | A worked config, typed with `defineConfig` |
-| [`reporters/demo.mjs`](reporters/demo.mjs) | A stand-in reporter, because no reporter plugin exists yet |
+| [`reporters/demo.mjs`](reporters/demo.mjs) | A stand-in reporter producing a `demo` report — a kind no viewer plugin claims, which is how you see the empty state |
 | [`scripts/make-certs.mjs`](scripts/make-certs.mjs) | Throwaway certificates for trying HTTPS |
 | `reports/` | Where reports land. Gitignored — it is scratch output |
+| `results/` | Raw vitest JSON from `pnpm results`. Also gitignored |
 
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
-| `pnpm generate <glob…>` | Generates a report into `./reports` |
+| `pnpm results` | Runs `@orion/cli`'s suite, capturing vitest JSON into `./results` |
+| `pnpm run test-report` | Turns that JSON into a stored `test-results` report. Needs `run`: `test-report` is fine, but keep the habit |
+| `pnpm generate <glob…>` | Generates a `demo` report into `./reports` with the stand-in reporter |
 | `pnpm run store <file>` | Puts an existing report file into `./reports`, no reporter involved. Needs `run`: pnpm has a `store` command of its own |
 | `pnpm serve` | Starts the viewer against that directory |
 | `pnpm certs` && `pnpm serve:https` | Generates a self-signed certificate and serves over TLS |
-| `pnpm reset` | Deletes `./reports` |
+| `pnpm reset` | Deletes `./reports` and `./results` |
 
-`generate` passes its arguments through, so the reporter's own options work:
+Both generate scripts pass their arguments through, so plugin options work:
 
 ```sh
+pnpm run test-report --storage-name nightly.json      # a stable id to link to
+pnpm run test-report --reporter-absolute-paths        # leave CI paths alone
 pnpm generate --title "Nightly" --changes 8 "**/*.json"
-pnpm generate --storage-name latest.json "src/**"   # a stable id to link to
-pnpm generate --storage-name runs/42/diff.json "."  # ids may contain slashes
+pnpm generate --storage-name runs/42/diff.json "."    # ids may contain slashes
 ```
 
 ## Things worth trying
+
+**The rendering, and its filter.** Open
+<http://127.0.0.1:7317/r/local/tests.json>. Type into the filter — the list
+narrows on both test names and file paths, and any file you had expanded stays
+expanded because the tree is filtered rather than rebuilt. Tick "Failed only" on
+a green run and you get the empty notice.
+
+**A failure worth looking at.** Break a test in `packages/cli` (change an
+expected value), then re-run `pnpm results && pnpm run test-report`. The failing
+file is expanded on arrival, the failures section leads with the real stack
+trace, and the counts bar turns.
+
+**A sharded run merging into one report.** Two inputs, one report:
+
+```sh
+pnpm --dir ../packages/cli exec vitest run --shard=1/2 --reporter=json \
+  --outputFile ../../playground/results/a.json
+pnpm --dir ../packages/cli exec vitest run --shard=2/2 --reporter=json \
+  --outputFile ../../playground/results/b.json
+pnpm run test-report --storage-name sharded.json "./results/*.json"
+```
+
+**Pointing the reporter at the wrong file.** `pnpm run test-report ./package.json`
+says it is not a vitest JSON result file and names the command that makes one.
+Nothing is stored — the reporter runs before the storage plugin.
+
+**An unbuilt bundle.** Move `plugins/viewer-test-results/dist/browser/index.js`
+aside and `pnpm serve` refuses to start: *"Has the plugin been built?"*. Bundles
+are stat-ed at startup, not at the first request.
 
 **Re-storing a report someone else generated.** Take a file out of `reports/`
 and put it back under a name you choose — no reporter runs, and the envelope is
@@ -62,9 +100,9 @@ id is the whole rest of the path, not one segment.
 **A hard refresh on a deep link.** It works because the server serves the client
 shell for anything it does not recognise, not because it knows that route.
 
-**Drag and drop.** Drop `reports/<id>.json` onto the home page. Watch the
-network tab: nothing is uploaded, because the server has no endpoint that
-accepts a report.
+**Drag and drop.** Drop `reports/tests.json` onto the home page. It renders
+identically to the stored one, minus the `source` — and the network tab shows
+nothing uploaded, because the server has no endpoint that accepts a report.
 
 **A missing option.** Delete `options.path` from the config and start the
 viewer. It refuses to listen and names the setting — the parse phase runs for
@@ -74,12 +112,14 @@ every plugin before anything binds a port.
 fails at startup with `does not implement fetch()`, rather than at the first
 request.
 
-**The empty state.** With `viewers: []` a report is fetched successfully and
-then has nothing to render it. That is the honest state of the repo: the viewer
-app and its plugin contract exist, but no viewer plugin does yet.
+**The empty state.** Run `pnpm generate "src/**"` and open the report it names.
+The stand-in reporter produces a `demo` report, and no viewer plugin claims that
+kind, so it is fetched successfully and then has nothing to render it. Dispatch
+is per `Report.kind`, and this is what a viewer that has never heard of your
+report looks like.
 
 ## Note
 
-`reports/` is gitignored, so a fresh clone has nothing to serve until you run
-`pnpm generate`. The viewer starts fine regardless — an empty storage directory
-is not an error, it just has no reports in it.
+`reports/` and `results/` are gitignored, so a fresh clone has nothing to serve
+until you run one of the generate scripts. The viewer starts fine regardless —
+an empty storage directory is not an error, it just has no reports in it.

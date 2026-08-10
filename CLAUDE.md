@@ -69,23 +69,42 @@ it runs.
 - **`@orion/core`** ([`packages/core`](packages/core)) — shared contracts.
   `ReporterPlugin`, `StoragePlugin`, `ViewerPlugin`, `Report`, `OptionSpec`,
   `OptionsResult`. Mostly types; the runtime code is the result helpers in
-  [`src/results.ts`](packages/core/src/results.ts) and the guards in
-  [`src/reports.ts`](packages/core/src/reports.ts) (`isReport`, `canStore`,
-  `canFetch`). Zero dependencies, and importable from a browser bundle.
+  [`src/results.ts`](packages/core/src/results.ts), the option readers in
+  [`src/values.ts`](packages/core/src/values.ts) (`stringOption`, …) and the
+  guards in [`src/reports.ts`](packages/core/src/reports.ts) (`isReport`,
+  `canStore`, `canFetch`). Zero dependencies, and importable from a browser
+  bundle — a viewer plugin's bundle inlines it, so this is a hard constraint,
+  not a preference.
 - **`@orion/host`** ([`packages/host`](packages/host)) — resolving, importing
   and shape-checking a plugin package. Shared by both binaries; takes the host's
   error constructor as a parameter, since `CliError` and `ViewerError` belong to
   whoever prints them.
+- **`@orion/plugin-toolkit`** ([`packages/plugin-toolkit`](packages/plugin-toolkit))
+  — plugin-side helpers that touch `node:fs`/`node:path`: `expandInputs`
+  (the glob expansion the reporter contract puts on the plugin), `readJsonFile`,
+  `posixPath`, `relativeTo`, `isContained`. Plugins depend on it; hosts do not.
+  It exists so core can stay browser-safe.
+- **`@orion/report-test-results`** ([`packages/report-test-results`](packages/report-test-results))
+  — the `test-results` report kind: types, `TEST_RESULTS_KIND`/`_VERSION`, and
+  the `isTestResults` guard. A report kind is a contract between a reporter and
+  a viewer, so it gets its own zero-dep package rather than being duplicated in
+  both or pushed into core, where `Report.data` is deliberately opaque.
 - **`@orion/cli`** ([`packages/cli`](packages/cli)) — the `orion` binary.
   `generate` builds a report and stores it; `store` takes a report file that
   already exists and stores it, so an upload job needs no reporter installed.
 - **`@orion/viewer`** ([`packages/viewer`](packages/viewer)) — the
   `orion-viewer` binary plus an importable `createServer`/`startServer`. Server
   in `src/` (tsc → `dist/`), Vue client in `client/` (Vite → `dist/client/`).
-- **[`plugins/`](plugins)** — base plugins, matched by a workspace glob. So far
-  only `@orion/plugin-storage-filesystem`
-  ([`plugins/storage-filesystem`](plugins/storage-filesystem)), which stores and
-  reads a report as one JSON file under a root directory.
+- **[`plugins/`](plugins)** — base plugins, matched by a workspace glob. One per
+  role: `@orion/plugin-reporter-vitest`
+  ([`plugins/reporter-vitest`](plugins/reporter-vitest)) maps
+  `vitest --reporter=json` output into a `test-results` report;
+  `@orion/plugin-storage-filesystem`
+  ([`plugins/storage-filesystem`](plugins/storage-filesystem)) stores and reads
+  a report as one JSON file under a root directory; and
+  `@orion/plugin-viewer-test-results`
+  ([`plugins/viewer-test-results`](plugins/viewer-test-results)) renders
+  `test-results` in the browser, framework-free.
 
 Both hosts load plugins by dynamic import at runtime and have no build-time
 dependency on any of them. Plugin packages resolve from the working directory
@@ -163,10 +182,19 @@ name; they stay on separate targets and neither sees the other's values.
 - **The viewer's client is a separate Vite build.** `tsc --build` alone leaves
   `dist/client` missing, and every page then returns 503 while the API keeps
   working. `pnpm build` runs both.
-- **`client/tsconfig.json` deliberately does not extend `tsconfig.base.json`**
-  (DOM lib, bundler resolution) and is not in the root references. Typecheck it
-  with `test:types:client` — a third entry point neither `pnpm typecheck` nor
-  `test:types` covers.
+- **A viewer *plugin* has a second build too**, and it fails harder: the viewer
+  stats each plugin's bundle at **startup**, so a missing `dist/browser/index.js`
+  stops the server rather than one page. The script must be named exactly
+  `build:client` (with `clean:client`, `test:types:client`) — the root scripts
+  run `pnpm -r --if-present` over those names and silently skip anything else.
+- **A viewer plugin's bundle must be one self-contained file.** Only
+  `/plugins/<id>/bundle.js` is served; a sibling `style.css` or `.js.map` 404s.
+  It is served `immutable`, so a rebuild during dev needs a hard refresh, and
+  the manifest is fetched once, so adding a plugin needs a viewer restart.
+- **Browser tsconfigs deliberately do not extend `tsconfig.base.json`**
+  (DOM lib, bundler resolution) and are not in the root references. Typecheck
+  them with `test:types:client` — a third entry point neither `pnpm typecheck`
+  nor `test:types` covers. Two packages have one now.
 - **Relative imports need a `.js` extension** (`NodeNext`), even in `.ts` files.
 - **`noUncheckedIndexedAccess` is on** — indexing yields `T | undefined`.
 - **A new package must be added to the root [`tsconfig.json`](tsconfig.json)
@@ -181,7 +209,12 @@ name; they stay on separate targets and neither sees the other's values.
   `tsc --build` excludes `test/`. Run `test:types` separately.
 - **Test fixtures in `test/fixtures/` are real `.mjs` modules**, loaded for real
   rather than mocked. Several are deliberately invalid to exercise failure
-  paths — do not "fix" them.
+  paths — do not "fix" them. The exception is
+  `plugins/reporter-vitest/test/fixtures/`, which is JSON *data*; `real-run.json`
+  is captured from an actual vitest run and its README says how to recapture it.
+- **A plugin's runtime errors reach the user as a stack trace.** The CLI catches
+  only `CliError`, so anything a reporter or storage plugin throws is unwrapped.
+  Write those messages as prose for the person who typed the command.
 - **pnpm only links a workspace `bin` when something depends on the package**,
   and only once `dist/` exists. The root `package.json` depends on `@orion/cli`
   and `@orion/viewer` for that reason alone; if `pnpm exec orion-viewer` is not
@@ -191,7 +224,10 @@ name; they stay on separate targets and neither sees the other's values.
 
 ## Not built yet
 
-No reporter plugin, no viewer plugin (so a fetched report reaches an empty state
-rather than a rendering), and no stdin input for `generate` (it currently errors
-when given no positional arguments, though requirement 2 calls for piped input).
-There is no authentication anywhere in the viewer.
+All three roles now have a working implementation and the pipeline runs end to
+end (`vitest --reporter=json` → report → stored → rendered in the browser). What
+is still missing: the Pulumi diff reporter, which is the MVP target in
+`REQUIREMENTS.md`; stdin input for `generate`, which errors when given no
+positional arguments though requirement 2 calls for piped input; and any
+authentication anywhere in the viewer. A report of a kind no viewer plugin
+claims still reaches the empty state, by design.

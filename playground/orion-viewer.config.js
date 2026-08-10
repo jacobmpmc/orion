@@ -24,8 +24,12 @@ export default defineConfig({
     },
   ],
 
-  // No viewer plugin exists yet, so a fetched report reaches the "no viewer
-  // plugin renders '<kind>' reports" empty state rather than a rendering. Add
-  // one here when there is one: { package: "@orion/plugin-viewer-..." }.
-  viewers: [],
+  // Renders `test-results` reports -- what `pnpm run test-report` produces.
+  // A report of any other kind (the demo reporter's, say) still reaches the
+  // "no viewer plugin renders '<kind>' reports" empty state, which is worth
+  // seeing at least once.
+  //
+  // Its browser bundle must have been built: `pnpm build` from the root does
+  // both halves, but `tsc --build` alone leaves the viewer refusing to start.
+  viewers: [{ package: "@orion/plugin-viewer-test-results" }],
 });
