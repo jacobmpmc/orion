@@ -91,22 +91,33 @@ it runs.
   the `isTestResults` guard. A report kind is a contract between a reporter and
   a viewer, so it gets its own zero-dep package rather than being duplicated in
   both or pushed into core, where `Report.data` is deliberately opaque.
+- **`@orion/report-composite`** ([`packages/report-composite`](packages/report-composite))
+  — the `composite` report kind: a report whose parts are other reports, each
+  either embedded whole or referenced as `{ connection, id }`. Depends on
+  `@orion/core` (type-only, for `Report` and `isReport`) and nothing else, so it
+  still inlines into a browser bundle.
 - **`@orion/cli`** ([`packages/cli`](packages/cli)) — the `orion` binary.
   `generate` builds a report and stores it; `store` takes a report file that
   already exists and stores it, so an upload job needs no reporter installed.
 - **`@orion/viewer`** ([`packages/viewer`](packages/viewer)) — the
   `orion-viewer` binary plus an importable `createServer`/`startServer`. Server
   in `src/` (tsc → `dist/`), Vue client in `client/` (Vite → `dist/client/`).
-- **[`plugins/`](plugins)** — base plugins, matched by a workspace glob. One per
-  role: `@orion/plugin-reporter-vitest`
+- **[`plugins/`](plugins)** — base plugins, matched by a workspace glob.
+  `@orion/plugin-reporter-vitest`
   ([`plugins/reporter-vitest`](plugins/reporter-vitest)) maps
   `vitest --reporter=json` output into a `test-results` report;
   `@orion/plugin-storage-filesystem`
   ([`plugins/storage-filesystem`](plugins/storage-filesystem)) stores and reads
-  a report as one JSON file under a root directory; and
+  a report as one JSON file under a root directory;
   `@orion/plugin-viewer-test-results`
   ([`plugins/viewer-test-results`](plugins/viewer-test-results)) renders
-  `test-results` in the browser, framework-free.
+  `test-results` in the browser, framework-free; and the composite pair,
+  `@orion/plugin-reporter-composite`
+  ([`plugins/reporter-composite`](plugins/reporter-composite)), which compiles
+  existing report files into one `composite` report, and
+  `@orion/plugin-viewer-composite`
+  ([`plugins/viewer-composite`](plugins/viewer-composite)), which renders one by
+  asking the host to draw each part.
 
 Both hosts load plugins by dynamic import at runtime and have no build-time
 dependency on any of them. Plugin packages resolve from the working directory
@@ -134,6 +145,17 @@ collected across a canonical flag and its alias. See
 CLI only writes and the viewer only reads, so a write-only or read-only backend
 is valid. Each host loads with the method it needs and narrows to
 `WritableStoragePlugin` / `ReadableStoragePlugin`.
+
+**A viewer plugin can render other reports, and the host draws the fallback.**
+`ViewerMountContext` carries `render(element, target)` and `canRender(kind)`;
+`target` is a `Report` or a `{ connection, id }` the host fetches. It is the same
+dispatch a top-level report goes through, in
+[`viewer/client/src/render/mountReport.ts`](packages/viewer/client/src/render/mountReport.ts),
+which is outside any component precisely so it can recurse. It never rejects for
+an unrenderable child — the host puts a placeholder in the element and resolves —
+so no plugin writes that fallback, and `MAX_NESTING_DEPTH` caps recursion because
+two stored reports can reference each other. A child's unmount belongs to the
+plugin that asked for it.
 
 **The viewer has no upload endpoint, and must not grow one.** A dropped report
 is parsed in the browser and never sent anywhere. That is what makes the app

@@ -37,6 +37,9 @@ export type {
   ViewerMount,
   ViewerMountContext,
   ViewerPlugin,
+  ViewerRender,
+  ViewerRenderTarget,
+  ViewerReportRef,
   ViewerUnmount,
   WritableStoragePlugin,
 } from "./plugin.js";

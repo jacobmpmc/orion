@@ -1,0 +1,25 @@
+{
+  // Deliberately does not extend tsconfig.base.json. That config pins NodeNext
+  // resolution and omits the DOM lib, both of which are wrong for a bundled
+  // browser module, so every field would have to be overridden anyway.
+  //
+  // Not in the root tsconfig references either: it emits nothing, and Vite is
+  // what actually builds these files.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "composite": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["browser/**/*.ts", "vite.config.ts"]
+}

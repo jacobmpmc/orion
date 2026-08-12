@@ -1,0 +1,17 @@
+{
+  // Typechecks the tests. `browser/model.ts` is listed on its own rather than
+  // the whole of browser/: the model is deliberately DOM-free so it can be
+  // tested under Node, and this include is what keeps it that way -- a DOM
+  // reference added to it stops typechecking here.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src/**/*", "test/**/*", "browser/model.ts", "vitest.config.ts"]
+}

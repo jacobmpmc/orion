@@ -24,12 +24,19 @@ export default defineConfig({
     },
   ],
 
-  // Renders `test-results` reports -- what `pnpm run test-report` produces.
-  // A report of any other kind (the demo reporter's, say) still reaches the
-  // "no viewer plugin renders '<kind>' reports" empty state, which is worth
-  // seeing at least once.
+  // A report of a kind no plugin here claims (the demo reporter's, say) still
+  // reaches the "no viewer plugin renders '<kind>' reports" empty state, which
+  // is worth seeing at least once.
   //
-  // Its browser bundle must have been built: `pnpm build` from the root does
+  // Every browser bundle must have been built: `pnpm build` from the root does
   // both halves, but `tsc --build` alone leaves the viewer refusing to start.
-  viewers: [{ package: "@orion/plugin-viewer-test-results" }],
+  viewers: [
+    // Renders `test-results` reports -- what `pnpm run test-report` produces.
+    { package: "@orion/plugin-viewer-test-results" },
+    // Renders `composite` reports -- what `pnpm run composite` produces -- by
+    // asking the host to draw each part with whichever plugin claims it. Drop
+    // the line above and the composite still renders, with a placeholder where
+    // each test-results part would have been.
+    { package: "@orion/plugin-viewer-composite" },
+  ],
 });

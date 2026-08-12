@@ -76,7 +76,7 @@ pnpm exec orion store --storage @orion/plugin-storage-filesystem --path ./report
 ## The playground
 
 [`playground/`](../playground) is already wired up for exactly this: it depends
-on both binaries and all three plugins, and carries a worked viewer config.
+on both binaries and every base plugin, and carries a worked viewer config.
 
 ```sh
 pnpm build          # from the repo root — both binaries, both browser bundles

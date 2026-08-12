@@ -231,6 +231,45 @@ The home page accepts a report JSON file by drop or file picker. It is read with
 by the same plugin dispatch a stored report goes through. Nothing is uploaded,
 so a report from a storage backend this viewer has no connection to still opens.
 
+## Nested rendering
+
+A viewer plugin can hand an element back to the app and have another report
+drawn into it. `ViewerMountContext` carries two things for that:
+
+```ts
+render(element, target): Promise<ViewerUnmount>   // target: a Report, or { connection, id }
+canRender(kind): boolean
+```
+
+`render` is the app's own dispatch — the same kind → plugin → bundle → `mount`
+path a top-level report takes, one level down and with `depth + 1`. A `{
+connection, id }` target is fetched through `/api/reports/…` first; a `Report`
+in hand is used as it stands, which is what makes a dropped composite render
+offline. The machinery lives in
+[`client/src/render/mountReport.ts`](../packages/viewer/client/src/render/mountReport.ts),
+deliberately outside any component so it can recurse;
+`useReportViewer` is the reactive wrapper the page uses.
+
+**The host draws the fallback.** `render` never rejects for a report the app
+cannot draw. A kind no plugin claims, a bundle that fails to load, a ref that
+404s, and nesting past the depth limit all resolve after the host has put a
+placeholder in the element saying which of those happened. One fallback, drawn
+the same way wherever it appears, instead of one per plugin. At the *top* of the
+page the same failure is a notice above the mount area instead — that is
+`ReportHost`'s own chrome, and it has not moved.
+
+**Nesting is capped at `MAX_NESTING_DEPTH` (4).** Two stored reports can
+reference each other, so a cycle is reachable with well-formed data; the cap is
+what stops it, not the schema. Past it the placeholder says the reports are
+nested too deeply.
+
+**A nested report is plugin content only.** The metadata panel below is host
+chrome for the report the reader navigated to, and it is not repeated per child;
+the layout around a child belongs to the plugin that asked for it.
+
+[`plugins/viewer-composite`](../plugins/viewer-composite) is the worked example,
+and [`plugins/README.md`](../plugins/README.md) has the plugin-side guidance.
+
 ## Report metadata
 
 Above whatever a viewer plugin renders, the app draws a collapsed disclosure

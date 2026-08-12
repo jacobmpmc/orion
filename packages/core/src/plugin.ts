@@ -214,14 +214,51 @@ export interface ViewerPlugin<TOptions = unknown> extends Plugin<TOptions> {
   readonly bundle: string;
 }
 
+/** A stored report, addressed the way the viewer addresses one. */
+export interface ViewerReportRef {
+  readonly connection: string;
+  readonly id: string;
+}
+
+/** What `ViewerRender` accepts: a report in hand, or one the host should fetch. */
+export type ViewerRenderTarget = Report | ViewerReportRef;
+
+/**
+ * Renders another report into an element the calling plugin owns.
+ *
+ * This is the host's plugin dispatch, handed back to plugins: a report whose
+ * data contains other reports can show them without knowing which plugin draws
+ * which kind, or where a bundle lives.
+ *
+ * It never rejects for a report the host cannot draw. A kind no plugin claims, a
+ * bundle that fails to load, a ref that cannot be fetched, and nesting past the
+ * host's depth limit all resolve after the host has put an explanatory
+ * placeholder in the element -- one fallback, drawn the same way everywhere,
+ * rather than one per plugin. It rejects only if the element itself is unusable.
+ *
+ * The element's existing children are replaced. The returned unmount clears what
+ * went in; the caller must invoke it from its own unmount.
+ */
+export type ViewerRender<TElement = unknown> = (
+  element: TElement,
+  target: ViewerRenderTarget,
+) => Promise<ViewerUnmount>;
+
 /** What a viewer plugin's browser bundle is handed when it mounts. */
-export interface ViewerMountContext {
+export interface ViewerMountContext<TElement = unknown> {
   readonly report: Report;
   /** Where the report came from, absent when the user dropped it in. */
-  readonly source?: {
-    readonly connection: string;
-    readonly id: string;
-  };
+  readonly source?: ViewerReportRef;
+  /** Renders another report into an element this plugin owns. */
+  readonly render: ViewerRender<TElement>;
+  /**
+   * Whether some registered plugin claims a `Report.kind`.
+   *
+   * A cheap lookup, so a plugin can lay out an unrenderable child differently
+   * -- collapse it, say -- instead of drawing a section around a placeholder.
+   * Using `render` alone is fine; this only exists to inform layout.
+   */
+  readonly canRender: (kind: string) => boolean;
 }
 
 export type ViewerUnmount = () => void;
@@ -236,5 +273,5 @@ export type ViewerUnmount = () => void;
  */
 export type ViewerMount<TElement = unknown> = (
   element: TElement,
-  context: ViewerMountContext,
+  context: ViewerMountContext<TElement>,
 ) => ViewerUnmount | Promise<ViewerUnmount>;

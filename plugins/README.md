@@ -10,8 +10,10 @@ maintained alongside the CLI.
 | Package | Role | What it does |
 | --- | --- | --- |
 | [`reporter-vitest`](reporter-vitest) | reporter | `vitest --reporter=json` output → a `test-results` report |
+| [`reporter-composite`](reporter-composite) | reporter | Existing report files → one `composite` report |
 | [`storage-filesystem`](storage-filesystem) | storage | One JSON file per report under a directory |
 | [`viewer-test-results`](viewer-test-results) | viewer | Renders `test-results` reports in the browser |
+| [`viewer-composite`](viewer-composite) | viewer | Renders `composite` reports by asking the host to draw each part |
 
 ## Roles
 
@@ -118,9 +120,9 @@ is `mount`:
 
 ```ts
 // dist/browser/index.js
-export function mount(element, { report, source }) {
+export function mount(element, { report, source, render, canRender }) {
   // `source` is { connection, id } for a stored report, absent for a dropped one.
-  const view = render(report);
+  const view = draw(report);
   element.append(view);
   return () => view.remove();      // the unmount, called before the next render
 }
@@ -150,6 +152,51 @@ single-entry Vite `build.lib`, a stylesheet kept as a string rather than
 imported, and no framework at all. Its bundle is stat-ed when the **viewer
 starts**, not at the first request, so a plugin whose `build:client` has not run
 stops the server rather than one page.
+
+### Rendering another report inside yours
+
+`render` is the host's own dispatch, handed back to you: give it an element and
+either a `Report` or a `{ connection, id }` ref, and whichever plugin claims that
+report's kind draws into it. A report whose data contains other reports —
+a composite, a diff that wants to show the test run that gated it — renders them
+without knowing which plugins exist.
+
+```ts
+export async function mount(element, { report, render, canRender }) {
+  const body = document.createElement("div");
+  element.append(body);
+
+  const child = report.data.child;                 // a Report, or a ref
+  const unmountChild = await render(body, child);
+
+  return () => {
+    unmountChild();                                // yours to call, always
+    body.remove();
+  };
+}
+```
+
+Three things to know:
+
+- **It never rejects for a report the host cannot draw.** A kind no plugin
+  claims, a bundle that fails to load, a ref that cannot be fetched, and nesting
+  past the host's depth limit all resolve after the host has put an explanatory
+  placeholder in the element. Write no fallback of your own; every one of them
+  looks the same across the app because the host draws it.
+- **The child's unmount is yours to call.** The host tears down your mount, not
+  the ones you asked for. A child you drop on the floor keeps its listeners.
+- **`canRender(kind)` only informs layout.** It is a manifest lookup, useful for
+  deciding whether to start a section collapsed. Calling `render` regardless is
+  correct, and is what `viewer-composite` does.
+
+Everything below the element you hand over belongs to another plugin: do not
+read it, clear it, or style it. Scope your stylesheet so a bare `h2` rule of
+yours cannot reach into it — `viewer-composite` styles its `.ocp-body` wrapper
+and nothing inside it.
+
+There is no nesting for host chrome: the metadata panel is drawn once, at the
+top of the page, for the report the reader navigated to. A child renders as
+plugin content only, and the layout around it is yours.
 
 ## The two phases
 
@@ -210,6 +257,7 @@ leaving it stranded.
 | `@orion/core` | Contracts, `ok` / `invalid`, and the option readers `stringOption`, `numberOption`, `booleanOption`, `listOption` | Zero deps, **browser-importable** |
 | [`@orion/plugin-toolkit`](../packages/plugin-toolkit) | `expandInputs`, `readJsonFile`, `posixPath`, `relativeTo`, `isContained` | Node only |
 | [`@orion/report-test-results`](../packages/report-test-results) | One report kind's types, constants and guard | Zero deps, browser-importable |
+| [`@orion/report-composite`](../packages/report-composite) | The `composite` kind: a report whose parts are other reports | `@orion/core` only, browser-importable |
 
 The option readers save every `parseOptions` from re-implementing "a string, but
 only if it is really a string and not blank" — which matters because a value

@@ -255,6 +255,30 @@ and the id in the first line is what the link uses. See
 [`plugins/reporter-vitest`](../plugins/reporter-vitest) for its options, and
 [`playground/README.md`](../playground/README.md) to run both halves.
 
+### Compiling several reports into one
+
+A job that produced more than one report can publish them as a single artefact,
+with `@orion/plugin-reporter-composite`. Its positionals are report files rather
+than tool output — the JSON `generate` already wrote:
+
+```sh
+pnpm exec orion generate \
+  --reporter @orion/plugin-reporter-composite \
+  --storage @orion/plugin-storage-filesystem \
+  --storage-path ./reports \
+  --storage-name everything.json \
+  --title "CI run" \
+  ./reports/tests.json ./reports/diff.json
+```
+
+Each file is embedded whole, titled after its name, so the result opens
+anywhere. `--ref <connection>=<id>` adds a part that stays in storage and is
+fetched when someone views it — smaller, but it only renders for a viewer that
+has that connection. Both forms may appear in one report; refs come last.
+
+The viewer draws each part with whatever plugin claims its kind, so a composite
+needs no viewer plugin per part beyond the ones already installed.
+
 ## Writing your own reporter
 
 A reporter does not have to be a published package — any `.mjs` module exporting

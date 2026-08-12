@@ -1,7 +1,7 @@
 # Playground
 
 A scratch project that consumes the workspace the way a real one would: it
-depends on `@orion/cli`, `@orion/viewer` and all three plugins, so both binaries
+depends on `@orion/cli`, `@orion/viewer` and every base plugin, so both binaries
 resolve here and plugins are found by name rather than by path.
 
 Nothing here is part of the product. It exists to run the two halves of Orion
@@ -39,6 +39,7 @@ the server refuses to start rather than failing on a page.
 | `pnpm results` | Runs `@orion/cli`'s suite, capturing vitest JSON into `./results` |
 | `pnpm run test-report` | Turns that JSON into a stored `test-results` report. Needs `run`: `test-report` is fine, but keep the habit |
 | `pnpm generate <glob…>` | Generates a `demo` report into `./reports` with the stand-in reporter |
+| `pnpm run composite <report files…>` | Compiles reports already in `./reports` into one `composite` report at `everything.json` |
 | `pnpm run store <file>` | Puts an existing report file into `./reports`, no reporter involved. Needs `run`: pnpm has a `store` command of its own |
 | `pnpm serve` | Starts the viewer against that directory |
 | `pnpm certs` && `pnpm serve:https` | Generates a self-signed certificate and serves over TLS |
@@ -60,6 +61,54 @@ pnpm generate --storage-name runs/42/diff.json "."    # ids may contain slashes
 narrows on both test names and file paths, and any file you had expanded stays
 expanded because the tree is filtered rather than rebuilt. Tick "Failed only" on
 a green run and you get the empty notice.
+
+**One report made of others.** After `pnpm run test-report` and
+`pnpm generate "src/**"`, compile both into one:
+
+```sh
+pnpm run composite ./reports/tests.json ./reports/demo-*.json
+```
+
+Open <http://127.0.0.1:7317/r/local/everything.json>. The test-results part is
+drawn by the plugin that owns that kind — filter and all, working exactly as it
+does on its own page — and the `demo` parts, which no plugin claims, carry the
+host's placeholder instead. Note what is *not* repeated: one metadata panel, at
+the top, for the composite itself. A part whose kind nothing renders starts
+collapsed, because the plugin asked `canRender` before laying out the section.
+
+**A part that lives in storage.** An entry can reference a report instead of
+embedding it. Write one by hand into `reports/` and the viewer fetches it when
+it renders:
+
+```json
+{ "kind": "composite", "version": 1, "generatedAt": "2026-08-10T00:00:00.000Z",
+  "data": { "entries": [
+    { "title": "stored tests", "ref": { "connection": "local", "id": "tests.json" } },
+    { "title": "gone missing", "ref": { "connection": "local", "id": "nope.json" } }
+  ] } }
+```
+
+The second one's placeholder carries the API's own message —
+*No report 'nope.json' in connection 'local'* — which is the difference between
+"nothing renders this" and "this is not there any more". Refs are why
+`orion generate --reporter @orion/plugin-reporter-composite --ref local=tests.json`
+exists; the CLI still wants at least one positional, so pass a file too.
+
+**A cycle.** Two composites that reference each other are well-formed data:
+
+```sh
+node -e "const w=(n,r)=>require('node:fs').writeFileSync('reports/'+n,JSON.stringify({kind:'composite',version:1,generatedAt:new Date().toISOString(),data:{entries:[{ref:{connection:'local',id:r}}]}}));w('loop-a.json','loop-b.json');w('loop-b.json','loop-a.json')"
+```
+
+Open `/r/local/loop-a.json`. It nests four deep and stops with *"Reports are
+nested too deeply to render."* — the schema cannot prevent this, so the host
+caps it.
+
+**Dropping a composite in.** Drag `reports/everything.json` onto the home page.
+The embedded parts render with no network traffic at all; a `ref` entry in a
+dropped file still resolves, because the page is talking to a viewer that has
+that connection. Move the file to a machine whose viewer does not, and the same
+entry becomes a placeholder — which is the trade the schema documents.
 
 **A failure worth looking at.** Break a test in `packages/cli` (change an
 expected value), then re-run `pnpm results && pnpm run test-report`. The failing

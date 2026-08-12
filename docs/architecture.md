@@ -39,11 +39,14 @@ same second half of the pipeline, no reporter.
 | `@orion/host` | [`packages/host`](../packages/host) | Loading and validating plugin packages, shared by both hosts |
 | `@orion/plugin-toolkit` | [`packages/plugin-toolkit`](../packages/plugin-toolkit) | Node-side helpers for plugin authors: input expansion, JSON reading, path normalisation |
 | `@orion/report-test-results` | [`packages/report-test-results`](../packages/report-test-results) | The `test-results` report kind: schema, constants, guard |
+| `@orion/report-composite` | [`packages/report-composite`](../packages/report-composite) | The `composite` report kind: a report whose parts are other reports |
 | `@orion/cli` | [`packages/cli`](../packages/cli) | The `orion` binary |
 | `@orion/viewer` | [`packages/viewer`](../packages/viewer) | The `orion-viewer` server and its Vue client |
 | `@orion/plugin-reporter-vitest` | [`plugins/reporter-vitest`](../plugins/reporter-vitest) | Reads `vitest --reporter=json` output into a `test-results` report |
 | `@orion/plugin-storage-filesystem` | [`plugins/storage-filesystem`](../plugins/storage-filesystem) | Stores and reads a report as one JSON file on disk |
+| `@orion/plugin-reporter-composite` | [`plugins/reporter-composite`](../plugins/reporter-composite) | Compiles existing report files into one `composite` report |
 | `@orion/plugin-viewer-test-results` | [`plugins/viewer-test-results`](../plugins/viewer-test-results) | Renders `test-results` reports in the browser |
+| `@orion/plugin-viewer-composite` | [`plugins/viewer-composite`](../plugins/viewer-composite) | Renders `composite` reports, asking the host to draw each part |
 
 The CLI and the viewer both depend on `@orion/core` and `@orion/host` via
 `workspace:*`. Plugins depend on `@orion/core` for their types and are loaded at
@@ -63,7 +66,7 @@ Four packages hold code more than one plugin needs, and one rule decides which:
 | Package | Holds | Constraint |
 | --- | --- | --- |
 | `@orion/core` | Contracts and **pure** helpers — `ok`, `invalid`, the option readers | Zero deps, browser-importable |
-| `@orion/report-test-results` | One report kind's schema and guard | Zero deps, browser-importable |
+| `@orion/report-test-results`, `@orion/report-composite` | One report kind's schema and guard | Browser-importable; core at most |
 | `@orion/plugin-toolkit` | Plugin-side helpers touching `node:fs` / `node:path` | Node only; plugins depend on it, hosts do not |
 | `@orion/host` | Host-side plugin loading | Hosts only |
 
@@ -99,6 +102,7 @@ produced it.
 | [`report-test-results/src/schema.ts`](../packages/report-test-results/src/schema.ts) | The `test-results` shape, commented field by field |
 | [`reporter-vitest/src/map.ts`](../plugins/reporter-vitest/src/map.ts) | Vitest JSON → the schema: status folding, totals, merging shards |
 | [`viewer-test-results/browser/index.ts`](../plugins/viewer-test-results/browser/index.ts) | `mount` and the filter, in plain DOM |
+| [`viewer/client/src/render/mountReport.ts`](../packages/viewer/client/src/render/mountReport.ts) | Report → plugin → bundle → `mount`, and the `render` a plugin uses to nest another report |
 | [`cli/src/index.ts`](../packages/cli/src/index.ts) | Entry point and command dispatch |
 | [`cli/src/commands/index.ts`](../packages/cli/src/commands/index.ts) | Command registry — add new commands here |
 | [`cli/src/commands/plugin-command.ts`](../packages/cli/src/commands/plugin-command.ts) | Plumbing shared by the commands that name plugins: the two-pass argv scan, flag schema, parse phase, help layout |
@@ -154,6 +158,19 @@ The `viewer` role has no method the host calls at all: rendering happens in a
 browser. The plugin object instead declares which `Report.kind` values it
 renders and where its built browser bundle lives, and the server serves that
 file's bytes without ever evaluating it.
+
+### The dispatch is handed back to plugins
+
+A viewer plugin's `mount` receives `render(element, target)` alongside the
+report: give it an element and either a `Report` or a `{ connection, id }`, and
+the app resolves the kind, loads that plugin's bundle and mounts it there. So a
+report whose data contains other reports — `composite` is the first, but a diff
+that wants to show the run that gated it is the same shape — renders them
+without knowing which plugins are installed.
+
+The host, not the plugin, draws the fallback when it cannot render a child, and
+caps nesting depth because two stored reports can reference each other. See
+[Viewer](viewer.md#nested-rendering).
 
 ### Positionals are never expanded
 

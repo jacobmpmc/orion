@@ -3,12 +3,15 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/report-test-results" },
+    { "path": "./packages/report-composite" },
     { "path": "./packages/plugin-toolkit" },
     { "path": "./packages/host" },
     { "path": "./packages/cli" },
     { "path": "./packages/viewer" },
     { "path": "./plugins/storage-filesystem" },
     { "path": "./plugins/reporter-vitest" },
-    { "path": "./plugins/viewer-test-results" }
+    { "path": "./plugins/reporter-composite" },
+    { "path": "./plugins/viewer-test-results" },
+    { "path": "./plugins/viewer-composite" }
   ]
 }

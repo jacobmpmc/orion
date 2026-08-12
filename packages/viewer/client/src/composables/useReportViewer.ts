@@ -1,10 +1,8 @@
 import { computed, onScopeDispose, shallowRef, toValue, watch } from "vue";
 import type { ComputedRef, MaybeRefOrGetter } from "vue";
-import type { Report, ViewerMount, ViewerUnmount } from "@orion/core";
+import type { Report, ViewerUnmount } from "@orion/core";
+import { mountReport, noViewerMessage } from "../render/mountReport.js";
 import { useManifest } from "./useManifest.js";
-
-/** One import per bundle URL, so switching between reports does not refetch. */
-const bundles = new Map<string, Promise<{ mount?: ViewerMount<HTMLElement> }>>();
 
 export interface ReportSource {
   readonly connection: string;
@@ -21,6 +19,9 @@ export interface UseReportViewer {
  * and takes it back when the report changes or the scope is disposed. Nothing
  * inside the element is Vue's to touch once the plugin has mounted, which is
  * why the plugin's teardown is the only thing that clears it.
+ *
+ * The mounting itself lives in `render/mountReport.ts`, which a plugin can also
+ * reach through its mount context; this composable is the reactive half.
  */
 export function useReportViewer(
   host: MaybeRefOrGetter<HTMLElement | null | undefined>,
@@ -52,48 +53,27 @@ export function useReportViewer(
     if (element === null || element === undefined) return;
     element.replaceChildren();
 
-    const plugin = entry.value;
-    if (plugin === undefined) {
+    if (entry.value === undefined) {
       // Silent while the manifest is still on its way; this reruns when it
       // settles, since both `entry` and `settled` are watched.
       if (manifestError.value !== undefined) {
         error.value = `The list of viewer plugins could not be loaded: ${manifestError.value}`;
       } else if (settled.value) {
-        error.value = `No viewer plugin renders '${toValue(report).kind}' reports.`;
+        error.value = noViewerMessage(toValue(report).kind);
       }
       return;
     }
 
-    const url = new URL(plugin.bundle, window.location.origin).href;
-    let module: { mount?: ViewerMount<HTMLElement> };
-    try {
-      // @vite-ignore, or Vite tries to resolve a runtime URL at build time.
-      bundles.set(url, bundles.get(url) ?? import(/* @vite-ignore */ url));
-      module = await (bundles.get(url) as Promise<{ mount?: ViewerMount<HTMLElement> }>);
-    } catch (cause) {
-      bundles.delete(url);
-      error.value = `Could not load the '${plugin.name}' viewer plugin: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }`;
-      return;
-    }
-
-    if (typeof module.mount !== "function") {
-      error.value = `The '${plugin.name}' viewer plugin's bundle does not export mount().`;
-      return;
-    }
-
     const from = toValue(source);
-    try {
-      unmount = await module.mount(element, {
-        report: toValue(report),
-        ...(from !== undefined ? { source: from } : {}),
-      });
-    } catch (cause) {
-      error.value = `The '${plugin.name}' viewer plugin failed to render this report: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }`;
-    }
+    const result = await mountReport(element, toValue(report), {
+      depth: 0,
+      ...(from !== undefined ? { source: from } : {}),
+    });
+
+    unmount = result.unmount;
+    // A failure at the top of the page is a notice above the empty mount area,
+    // not a placeholder inside it -- that is the host's own chrome talking.
+    error.value = result.error;
   }
 
   // `post` so the host element exists in the DOM by the time a plugin gets it.
