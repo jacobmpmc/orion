@@ -76,6 +76,47 @@ order for a repeatable option.
 Option types, `required`, `multiple` and `default` come from each plugin's
 `OptionSpec` declarations. See [`plugins/README.md`](../plugins/README.md).
 
+### Plugin options from the environment
+
+Every plugin option also reads an environment variable:
+
+```
+ORION_<ROLE>_<OPTION_NAME>
+```
+
+The name is upper-cased and anything that is not a letter or digit becomes `_`,
+so a storage plugin's `api-token` is `ORION_STORAGE_API_TOKEN`. The role is part
+of the name, so the reporter and the storage plugin never share one:
+
+```sh
+export ORION_STORAGE_PATH=/var/reports
+export ORION_REPORTER_ROOT=.
+
+pnpm exec orion generate \
+  --reporter @orion/plugin-reporter-vitest \
+  --storage @orion/plugin-storage-filesystem \
+  results.json
+```
+
+Resolution order is **flag → environment → `default`**, and a variable satisfies
+a `required` option, so the run above needs neither `--storage-path` nor
+`--reporter-root`. Passing the flag as well is not an error — it simply wins,
+which is what makes a variable exported in a CI job overridable for one run.
+`orion generate --help` lists each option's variable alongside its flags.
+
+The core flags have no environment form. `--reporter` and `--storage` name the
+packages that *supply* the `ORION_REPORTER_*` / `ORION_STORAGE_*` options, and a
+plugin chosen by the same environment that configures it is a trap rather than a
+convenience.
+
+Values are read per type: a `number` must parse; a `boolean` takes a word rather
+than mere presence — `true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`, and empty
+is false — because a variable inherited from a CI job is easy to set and hard to
+unset, so `FLAG=false` has to mean false. An unrecognised word is an error, not
+a silent no. A **repeatable** option takes the whole value as one entry: no
+separator is safe for arbitrary plugin values, so several values stay a
+command-line-only thing rather than a quietly split one.
+
 ### The option parse phase
 
 Flag parsing only gets values as far as the right plugin. Each plugin then
@@ -196,7 +237,7 @@ of its own: the machine uploading a report is often not the one that generated
 it, and describing the uploader would be worse than saying nothing.
 
 Option resolution and the parse phase work exactly as they do for `generate`,
-with only the `storage` role in play. With no reporter competing for them, the
+environment variables included, with only the `storage` role in play. With no reporter competing for them, the
 storage plugin's options always get their bare aliases as well as the canonical
 `--storage-<name>` form:
 

@@ -3,6 +3,7 @@ import type { OptionSpec } from "@orion/core";
 import {
   CliError,
   describeFlags,
+  envVarName,
   optionsForRole,
   parseFlags,
   pluginFlagDefs,
@@ -141,6 +142,119 @@ describe("parseFlags", () => {
   });
 });
 
+describe("envVarName", () => {
+  it("prefixes the role and upper-cases the option name", () => {
+    expect(envVarName("storage", "path")).toBe("ORION_STORAGE_PATH");
+    expect(envVarName("reporter", "root")).toBe("ORION_REPORTER_ROOT");
+  });
+
+  it("replaces runs of non-alphanumeric characters with a single underscore", () => {
+    expect(envVarName("storage", "api-token")).toBe("ORION_STORAGE_API_TOKEN");
+    expect(envVarName("storage", "a.b-c")).toBe("ORION_STORAGE_A_B_C");
+  });
+});
+
+describe("parseFlags with environment variables", () => {
+  /** A plugin option, which is the only kind that reads the environment. */
+  function pluginDef(overrides: Partial<OptionSpec> & { name: string }): FlagDef {
+    const resolved = spec(overrides);
+    return {
+      flag: `storage-${resolved.name}`,
+      target: `storage:${resolved.name}`,
+      spec: resolved,
+    };
+  }
+
+  it("uses the environment when the flag is absent", () => {
+    const defs = [pluginDef({ name: "path" })];
+    const result = parseFlags([], defs, { ORION_STORAGE_PATH: "/var/reports" });
+
+    expect(result.values["storage:path"]).toBe("/var/reports");
+  });
+
+  it("lets the command line win over the environment", () => {
+    const defs = [pluginDef({ name: "path" })];
+    const result = parseFlags(["--storage-path", "./here"], defs, {
+      ORION_STORAGE_PATH: "/var/reports",
+    });
+
+    expect(result.values["storage:path"]).toBe("./here");
+  });
+
+  it("lets a bare alias win over the environment too", () => {
+    const canonical = pluginDef({ name: "path" });
+    const defs = [canonical, { ...canonical, flag: "path" }];
+    const result = parseFlags(["--path", "./here"], defs, { ORION_STORAGE_PATH: "/var/reports" });
+
+    expect(result.values["storage:path"]).toBe("./here");
+  });
+
+  it("prefers the environment over a declared default", () => {
+    const defs = [pluginDef({ name: "depth", type: "number", default: 3 })];
+
+    expect(parseFlags([], defs, { ORION_STORAGE_DEPTH: "9" }).values["storage:depth"]).toBe(9);
+    expect(parseFlags([], defs, {}).values["storage:depth"]).toBe(3);
+  });
+
+  it("satisfies a required option", () => {
+    const defs = [pluginDef({ name: "path", required: true })];
+
+    expect(parseFlags([], defs, { ORION_STORAGE_PATH: "/var" }).values["storage:path"]).toBe(
+      "/var",
+    );
+    expect(() => parseFlags([], defs, {})).toThrow(/or set ORION_STORAGE_PATH/);
+  });
+
+  it("reads booleans as words, in either direction", () => {
+    const defs = [pluginDef({ name: "verbose", type: "boolean" })];
+    const value = (env: Record<string, string>): unknown =>
+      parseFlags([], defs, env).values["storage:verbose"];
+
+    expect(value({ ORION_STORAGE_VERBOSE: "true" })).toBe(true);
+    expect(value({ ORION_STORAGE_VERBOSE: "1" })).toBe(true);
+    expect(value({ ORION_STORAGE_VERBOSE: "ON" })).toBe(true);
+    expect(value({ ORION_STORAGE_VERBOSE: "false" })).toBe(false);
+    expect(value({ ORION_STORAGE_VERBOSE: "" })).toBe(false);
+    expect(value({})).toBe(false);
+  });
+
+  it("rejects a boolean word it does not recognise", () => {
+    const defs = [pluginDef({ name: "verbose", type: "boolean" })];
+
+    expect(() => parseFlags([], defs, { ORION_STORAGE_VERBOSE: "maybe" })).toThrow(CliError);
+    expect(() => parseFlags([], defs, { ORION_STORAGE_VERBOSE: "maybe" })).toThrow(
+      /ORION_STORAGE_VERBOSE expects a boolean/,
+    );
+  });
+
+  it("rejects a number it cannot parse", () => {
+    const defs = [pluginDef({ name: "depth", type: "number" })];
+
+    expect(() => parseFlags([], defs, { ORION_STORAGE_DEPTH: "abc" })).toThrow(
+      /ORION_STORAGE_DEPTH expects a number/,
+    );
+    expect(() => parseFlags([], defs, { ORION_STORAGE_DEPTH: "  " })).toThrow(
+      /ORION_STORAGE_DEPTH expects a number/,
+    );
+  });
+
+  it("gives a repeatable option a single-entry array", () => {
+    const defs = [pluginDef({ name: "tag", multiple: true })];
+
+    expect(parseFlags([], defs, { ORION_STORAGE_TAG: "a,b" }).values["storage:tag"]).toEqual([
+      "a,b",
+    ]);
+  });
+
+  it("ignores the environment for core flags, which have no env form", () => {
+    const defs = [def({ name: "storage", required: true })];
+
+    expect(() => parseFlags([], defs, { ORION_STORAGE: "pkg" })).toThrow(
+      /Missing required option --storage\./,
+    );
+  });
+});
+
 describe("pluginFlagDefs", () => {
   it("always registers the canonical prefixed form", () => {
     const { defs } = pluginFlagDefs("reporter", [spec({ name: "token" })], new Set());
@@ -232,6 +346,16 @@ describe("describeFlags", () => {
     expect(lines[0]).toContain("[required]");
     expect(lines[1]).toContain("[repeatable]");
     expect(lines[2]).toContain("[default: 3]");
+  });
+
+  it("names the environment variable for a plugin option, and only for those", () => {
+    const lines = describeFlags([
+      { flag: "storage-path", target: "storage:path", spec: spec({ name: "path" }) },
+      def({ name: "help", type: "boolean" }),
+    ]);
+
+    expect(lines[0]).toContain("[env: ORION_STORAGE_PATH]");
+    expect(lines[1]).not.toContain("env:");
   });
 
   it("shows a value placeholder for non-boolean options only", () => {

@@ -51,10 +51,81 @@ function coerce(def: FlagDef, raw: string | boolean): string | number | boolean 
 }
 
 /**
+ * The environment variable a plugin option also reads from:
+ * `ORION_<ROLE>_<OPTION_NAME>`, upper-cased, with anything that is not a letter
+ * or digit becoming `_` (so `api-token` is `ORION_STORAGE_API_TOKEN`).
+ *
+ * Only plugin options get one. The core flags do not -- `--storage` names the
+ * package that *supplies* `ORION_STORAGE_*`, so reading it from the environment
+ * under a name inside that same prefix would be its own trap.
+ */
+export function envVarName(role: Role, name: string): string {
+  const normalized = name.replace(/[^a-zA-Z0-9]+/g, "_").toUpperCase();
+  return `ORION_${role.toUpperCase()}_${normalized}`;
+}
+
+/** The env var for a `role:name` target, or `undefined` for a core flag. */
+function envVarForTarget(target: string): string | undefined {
+  const separator = target.indexOf(":");
+  if (separator === -1) return undefined;
+
+  const role = target.slice(0, separator);
+  if (role !== "reporter" && role !== "storage") return undefined;
+
+  return envVarName(role, target.slice(separator + 1));
+}
+
+const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
+const FALSE_VALUES = new Set(["0", "false", "no", "off", ""]);
+
+/**
+ * Turns one environment value into an option value.
+ *
+ * Booleans take a word rather than mere presence: a variable inherited from a
+ * CI job's environment is easy to set and hard to unset, so `FLAG=false` has to
+ * mean false. An unrecognised word is an error rather than a falsy default --
+ * `VERBOSE=maybe` is a mistake, and silently disabling something is the worst
+ * way to answer it.
+ */
+function coerceEnv(variable: string, spec: OptionSpec, raw: string): OptionValue {
+  if (spec.type === "boolean") {
+    const word = raw.trim().toLowerCase();
+    if (TRUE_VALUES.has(word)) return true;
+    if (FALSE_VALUES.has(word)) return false;
+    throw new CliError(
+      `Environment variable ${variable} expects a boolean (true/false, 1/0, yes/no, on/off) but got '${raw}'.`,
+    );
+  }
+
+  if (spec.type === "number") {
+    const parsed = Number(raw.trim());
+    if (raw.trim() === "" || !Number.isFinite(parsed)) {
+      throw new CliError(`Environment variable ${variable} expects a number but got '${raw}'.`);
+    }
+    return spec.multiple === true ? [parsed] : parsed;
+  }
+
+  // A repeatable option takes the whole value as a single entry. There is no
+  // separator that is safe for arbitrary plugin values -- paths and key=value
+  // pairs both contain the obvious candidates -- so several values stay a
+  // command-line-only thing rather than a quietly mangled one.
+  return spec.multiple === true ? [raw] : raw;
+}
+
+/**
  * Parses `argv` against `defs`. Unknown flags are rejected so that a typo in a
  * plugin option fails loudly rather than being silently ignored.
+ *
+ * A plugin option not given on the command line falls back to its
+ * `ORION_<ROLE>_<NAME>` environment variable before its declared default, so a
+ * pipeline can keep credentials out of the command it runs. `env` is a
+ * parameter rather than a read of `process.env` so tests can supply one.
  */
-export function parseFlags(argv: readonly string[], defs: readonly FlagDef[]): ParseResult {
+export function parseFlags(
+  argv: readonly string[],
+  defs: readonly FlagDef[],
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ParseResult {
   const options: Record<string, { type: "string" | "boolean"; multiple?: boolean }> = {};
   for (const def of defs) {
     options[def.flag] = {
@@ -114,8 +185,10 @@ export function parseFlags(argv: readonly string[], defs: readonly FlagDef[]): P
     setBy.set(def.target, def.flag);
   }
 
-  // Apply defaults and enforce required options, once per target rather than
-  // once per alias.
+  // Fill from the environment, apply defaults and enforce required options,
+  // once per target rather than once per alias. A flag given on the command
+  // line already sat in `values` before this runs, which is what makes argv win
+  // over the environment.
   const seenTargets = new Set<string>();
   for (const def of defs) {
     if (seenTargets.has(def.target)) continue;
@@ -123,10 +196,21 @@ export function parseFlags(argv: readonly string[], defs: readonly FlagDef[]): P
 
     if (values[def.target] !== undefined) continue;
 
+    const variable = envVarForTarget(def.target);
+    const raw = variable === undefined ? undefined : env[variable];
+    if (variable !== undefined && raw !== undefined) {
+      values[def.target] = coerceEnv(variable, def.spec, raw);
+      continue;
+    }
+
     if (def.spec.default !== undefined) {
       values[def.target] = def.spec.default;
     } else if (def.spec.required === true) {
-      throw new CliError(`Missing required option --${def.flag}.`);
+      throw new CliError(
+        variable === undefined
+          ? `Missing required option --${def.flag}.`
+          : `Missing required option --${def.flag} (or set ${variable}).`,
+      );
     } else if (def.spec.type === "boolean") {
       values[def.target] = false;
     }
@@ -198,19 +282,22 @@ export function describeFlags(defs: readonly FlagDef[]): string[] {
     }
   }
 
-  const rows = [...byTarget.values()].map(({ flags, spec }) => {
+  const rows = [...byTarget.entries()].map(([target, { flags, spec }]) => {
     const rendered = flags.map((flag) => `--${flag}`).join(", ");
     const argument = spec.type === "boolean" ? "" : ` <${spec.type}>`;
-    return { left: `${rendered}${argument}`, spec };
+    return { left: `${rendered}${argument}`, spec, variable: envVarForTarget(target) };
   });
 
   const width = Math.max(0, ...rows.map((row) => row.left.length));
 
-  return rows.map(({ left, spec }) => {
+  return rows.map(({ left, spec, variable }) => {
     const notes: string[] = [];
     if (spec.required === true) notes.push("required");
     if (spec.multiple === true) notes.push("repeatable");
     if (spec.default !== undefined) notes.push(`default: ${String(spec.default)}`);
+    // The env var is listed with the option rather than in a block of its own:
+    // it is the same setting, and the name is derived, so nothing else says it.
+    if (variable !== undefined) notes.push(`env: ${variable}`);
     const suffix = notes.length > 0 ? ` [${notes.join(", ")}]` : "";
     return `  ${left.padEnd(width)}  ${spec.description}${suffix}`;
   });

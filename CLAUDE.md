@@ -199,6 +199,15 @@ as bare `--<name>` when no core flag or earlier-registered plugin claimed it
 (reporter registers before storage). Two plugins may declare the same option
 name; they stay on separate targets and neither sees the other's values.
 
+A plugin option is *also* read from `ORION_<ROLE>_<OPTION_NAME>` (upper-cased,
+non-alphanumerics to `_`), resolved **flag → environment → `default`**, and a
+variable satisfies `required`. Core flags deliberately have none — `--storage`
+picks the package that supplies `ORION_STORAGE_*`. Booleans take a word, not
+presence, so an inherited `FLAG=false` means false; a repeatable option gets one
+entry, since no separator is safe for arbitrary plugin values. The env fallback
+lives in the defaults loop of [`src/args.ts`](packages/cli/src/args.ts), which is
+why argv wins for free: it is already in `values` by then.
+
 ## Gotchas
 
 - **Build before running either binary.** The `bin`s point at `dist/`, not
