@@ -1,0 +1,16 @@
+{
+  // The Node half only: the plugin object the viewer imports. The browser
+  // sources next door are built by Vite and typechecked by tsconfig.browser.json,
+  // because they need the DOM lib and bundler resolution that this config
+  // deliberately does not have.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/report-pulumi-diff" }
+  ]
+}

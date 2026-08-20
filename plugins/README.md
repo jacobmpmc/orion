@@ -82,6 +82,13 @@ const plugin: ReporterPlugin<PulumiDiffOptions> = {
 export default plugin;
 ```
 
+That is a sketch, kept short. The plugin it is named after really exists —
+[`reporter-pulumi-diff`](reporter-pulumi-diff) — and differs in the two ways a
+real one always does: its options are all optional with declared defaults, and
+its `data` is typed by a report-kind package
+([`@orion/report-pulumi-diff`](../packages/report-pulumi-diff)) rather than
+being `{}`.
+
 The loader checks `kind`, `parseOptions` and whichever methods the host needs at
 runtime, so a mistyped or mismatched package fails with a clear error rather
 than a stack trace.

@@ -40,13 +40,16 @@ same second half of the pipeline, no reporter.
 | `@orion/plugin-toolkit` | [`packages/plugin-toolkit`](../packages/plugin-toolkit) | Node-side helpers for plugin authors: input expansion, JSON reading, path normalisation |
 | `@orion/report-test-results` | [`packages/report-test-results`](../packages/report-test-results) | The `test-results` report kind: schema, constants, guard |
 | `@orion/report-composite` | [`packages/report-composite`](../packages/report-composite) | The `composite` report kind: a report whose parts are other reports |
+| `@orion/report-pulumi-diff` | [`packages/report-pulumi-diff`](../packages/report-pulumi-diff) | The `pulumi-diff` report kind: schema, constants, guard, redaction sentinels |
 | `@orion/cli` | [`packages/cli`](../packages/cli) | The `orion` binary |
 | `@orion/viewer` | [`packages/viewer`](../packages/viewer) | The `orion-viewer` server and its Vue client |
 | `@orion/plugin-reporter-vitest` | [`plugins/reporter-vitest`](../plugins/reporter-vitest) | Reads `vitest --reporter=json` output into a `test-results` report |
 | `@orion/plugin-storage-filesystem` | [`plugins/storage-filesystem`](../plugins/storage-filesystem) | Stores and reads a report as one JSON file on disk |
 | `@orion/plugin-reporter-composite` | [`plugins/reporter-composite`](../plugins/reporter-composite) | Compiles existing report files into one `composite` report |
+| `@orion/plugin-reporter-pulumi-diff` | [`plugins/reporter-pulumi-diff`](../plugins/reporter-pulumi-diff) | Reads `pulumi preview --json` output into a `pulumi-diff` report |
 | `@orion/plugin-viewer-test-results` | [`plugins/viewer-test-results`](../plugins/viewer-test-results) | Renders `test-results` reports in the browser |
 | `@orion/plugin-viewer-composite` | [`plugins/viewer-composite`](../plugins/viewer-composite) | Renders `composite` reports, asking the host to draw each part |
+| `@orion/plugin-viewer-pulumi-diff` | [`plugins/viewer-pulumi-diff`](../plugins/viewer-pulumi-diff) | Renders `pulumi-diff` reports in the browser |
 
 The CLI and the viewer both depend on `@orion/core` and `@orion/host` via
 `workspace:*`. Plugins depend on `@orion/core` for their types and are loaded at
@@ -66,7 +69,7 @@ Four packages hold code more than one plugin needs, and one rule decides which:
 | Package | Holds | Constraint |
 | --- | --- | --- |
 | `@orion/core` | Contracts and **pure** helpers — `ok`, `invalid`, the option readers | Zero deps, browser-importable |
-| `@orion/report-test-results`, `@orion/report-composite` | One report kind's schema and guard | Browser-importable; core at most |
+| `@orion/report-test-results`, `@orion/report-composite`, `@orion/report-pulumi-diff` | One report kind's schema and guard | Browser-importable; core at most |
 | `@orion/plugin-toolkit` | Plugin-side helpers touching `node:fs` / `node:path` | Node only; plugins depend on it, hosts do not |
 | `@orion/host` | Host-side plugin loading | Hosts only |
 
@@ -101,6 +104,8 @@ produced it.
 | [`plugin-toolkit/src/inputs.ts`](../packages/plugin-toolkit/src/inputs.ts) | `expandInputs` — the glob expansion the reporter contract puts on the plugin |
 | [`report-test-results/src/schema.ts`](../packages/report-test-results/src/schema.ts) | The `test-results` shape, commented field by field |
 | [`reporter-vitest/src/map.ts`](../plugins/reporter-vitest/src/map.ts) | Vitest JSON → the schema: status folding, totals, merging shards |
+| [`report-pulumi-diff/src/schema.ts`](../packages/report-pulumi-diff/src/schema.ts) | The `pulumi-diff` shape, commented field by field, plus the secret and truncation sentinels |
+| [`reporter-pulumi-diff/src/map.ts`](../plugins/reporter-pulumi-diff/src/map.ts) | Preview digest → the schema: op folding, replacement-chain grouping, secret redaction, totals |
 | [`viewer-test-results/browser/index.ts`](../plugins/viewer-test-results/browser/index.ts) | `mount` and the filter, in plain DOM |
 | [`viewer/client/src/render/mountReport.ts`](../packages/viewer/client/src/render/mountReport.ts) | Report → plugin → bundle → `mount`, and the `render` a plugin uses to nest another report |
 | [`cli/src/index.ts`](../packages/cli/src/index.ts) | Entry point and command dispatch |
@@ -183,10 +188,6 @@ Plugins may contribute **named** arguments only; positionals are reserved.
 
 ## What is not built yet
 
-- **No Pulumi diff reporter.** All three roles now have a working
-  implementation, end to end, via the vitest reporter and the `test-results`
-  viewer — but the Pulumi diff reporter is still the MVP target per
-  [`REQUIREMENTS.md`](../REQUIREMENTS.md).
 - **No stdin input.** Requirement 2 allows piped input; `generate` currently
   errors when given no positionals.
 - **A plugin's runtime failures are not caught.** The CLI's error boundary only

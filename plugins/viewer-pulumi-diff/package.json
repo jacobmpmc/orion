@@ -1,0 +1,36 @@
+{
+  "name": "@orion/plugin-viewer-pulumi-diff",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "build:client": "vite build",
+    "clean:client": "node -e \"require('node:fs').rmSync('dist/browser',{recursive:true,force:true})\"",
+    "dev": "tsc --build --watch",
+    "dev:client": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:types": "tsc --noEmit -p tsconfig.test.json",
+    "test:types:client": "tsc --noEmit -p tsconfig.browser.json"
+  },
+  "dependencies": {
+    "@orion/core": "workspace:*",
+    "@orion/report-pulumi-diff": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

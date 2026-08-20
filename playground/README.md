@@ -38,6 +38,7 @@ the server refuses to start rather than failing on a page.
 | --- | --- |
 | `pnpm results` | Runs `@orion/cli`'s suite, capturing vitest JSON into `./results` |
 | `pnpm run test-report` | Turns that JSON into a stored `test-results` report. Needs `run`: `test-report` is fine, but keep the habit |
+| `pnpm run pulumi-report` | Turns the pulumi reporter's fixture into a stored `pulumi-diff` report at `preview.json`. Needs `run` |
 | `pnpm generate <glob…>` | Generates a `demo` report into `./reports` with the stand-in reporter |
 | `pnpm run composite <report files…>` | Compiles reports already in `./reports` into one `composite` report at `everything.json` |
 | `pnpm run store <file>` | Puts an existing report file into `./reports`, no reporter involved. Needs `run`: pnpm has a `store` command of its own |
@@ -50,6 +51,7 @@ Both generate scripts pass their arguments through, so plugin options work:
 ```sh
 pnpm run test-report --storage-name nightly.json      # a stable id to link to
 pnpm run test-report --reporter-absolute-paths        # leave CI paths alone
+pnpm run pulumi-report --omit-values --same           # paths only, unchanged kept
 pnpm generate --title "Nightly" --changes 8 "**/*.json"
 pnpm generate --storage-name runs/42/diff.json "."    # ids may contain slashes
 ```

@@ -4,6 +4,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/report-test-results" },
     { "path": "./packages/report-composite" },
+    { "path": "./packages/report-pulumi-diff" },
     { "path": "./packages/plugin-toolkit" },
     { "path": "./packages/host" },
     { "path": "./packages/cli" },
@@ -11,7 +12,9 @@
     { "path": "./plugins/storage-filesystem" },
     { "path": "./plugins/reporter-vitest" },
     { "path": "./plugins/reporter-composite" },
+    { "path": "./plugins/reporter-pulumi-diff" },
     { "path": "./plugins/viewer-test-results" },
-    { "path": "./plugins/viewer-composite" }
+    { "path": "./plugins/viewer-composite" },
+    { "path": "./plugins/viewer-pulumi-diff" }
   ]
 }

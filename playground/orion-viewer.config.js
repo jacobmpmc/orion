@@ -38,5 +38,8 @@ export default defineConfig({
     // the line above and the composite still renders, with a placeholder where
     // each test-results part would have been.
     { package: "@orion/plugin-viewer-composite" },
+    // Renders `pulumi-diff` reports -- what `pnpm run pulumi-report` produces
+    // from a captured `pulumi preview --json`.
+    { package: "@orion/plugin-viewer-pulumi-diff" },
   ],
 });

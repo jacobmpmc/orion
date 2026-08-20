@@ -38,8 +38,8 @@ or [Architecture](architecture.md) if you want to know how the pieces fit.
 
 ## Status
 
-Early, but end to end: a real test run becomes a report, is stored, and is
-rendered in the browser, and several reports can be compiled into one that
-renders each part with the plugin that owns it. Not yet built: the Pulumi
-diff reporter that is the MVP target, stdin input for `generate`, and any
-authentication. See [Architecture](architecture.md#what-is-not-built-yet).
+Early, but end to end, and the MVP target is met: a `pulumi preview --json` or a
+real test run becomes a report, is stored, and is rendered in the browser, and
+several reports can be compiled into one that renders each part with the plugin
+that owns it. Not yet built: stdin input for `generate`, and any authentication.
+See [Architecture](architecture.md#what-is-not-built-yet).

@@ -9,6 +9,7 @@
     "store": "orion store --storage @orion/plugin-storage-filesystem --storage-path ./reports",
     "results": "pnpm --dir ../packages/cli exec vitest run --reporter=json --outputFile ../../playground/results/cli.json",
     "test-report": "orion generate --reporter @orion/plugin-reporter-vitest --storage @orion/plugin-storage-filesystem --storage-path ./reports --storage-name tests.json --reporter-root ../packages/cli ./results/cli.json",
+    "pulumi-report": "orion generate --reporter @orion/plugin-reporter-pulumi-diff --storage @orion/plugin-storage-filesystem --storage-path ./reports --storage-name preview.json ../plugins/reporter-pulumi-diff/test/fixtures/preview.json",
     "composite": "orion generate --reporter @orion/plugin-reporter-composite --storage @orion/plugin-storage-filesystem --storage-path ./reports --storage-name everything.json --title \"CI run\"",
     "serve": "orion-viewer",
     "serve:https": "orion-viewer --tls-cert ./tls/cert.pem --tls-key ./tls/key.pem",
@@ -18,9 +19,11 @@
   "dependencies": {
     "@orion/cli": "workspace:*",
     "@orion/plugin-reporter-composite": "workspace:*",
+    "@orion/plugin-reporter-pulumi-diff": "workspace:*",
     "@orion/plugin-reporter-vitest": "workspace:*",
     "@orion/plugin-storage-filesystem": "workspace:*",
     "@orion/plugin-viewer-composite": "workspace:*",
+    "@orion/plugin-viewer-pulumi-diff": "workspace:*",
     "@orion/plugin-viewer-test-results": "workspace:*",
     "@orion/viewer": "workspace:*"
   }

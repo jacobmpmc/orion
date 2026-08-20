@@ -96,6 +96,12 @@ it runs.
   either embedded whole or referenced as `{ connection, id }`. Depends on
   `@orion/core` (type-only, for `Report` and `isReport`) and nothing else, so it
   still inlines into a browser bundle.
+- **`@orion/report-pulumi-diff`** ([`packages/report-pulumi-diff`](packages/report-pulumi-diff))
+  — the `pulumi-diff` report kind: which resources a preview would change, and
+  which of their properties differ. Zero dependencies. It also owns the
+  redaction contract: a value pulumi marked secret becomes the `SECRET`
+  sentinel, an over-long one becomes `Truncated`, and `isSecretValue` /
+  `isTruncatedValue` are how a viewer spots them.
 - **`@orion/cli`** ([`packages/cli`](packages/cli)) — the `orion` binary.
   `generate` builds a report and stores it; `store` takes a report file that
   already exists and stores it, so an upload job needs no reporter installed.
@@ -117,7 +123,13 @@ it runs.
   existing report files into one `composite` report, and
   `@orion/plugin-viewer-composite`
   ([`plugins/viewer-composite`](plugins/viewer-composite)), which renders one by
-  asking the host to draw each part.
+  asking the host to draw each part; and the pulumi pair,
+  `@orion/plugin-reporter-pulumi-diff`
+  ([`plugins/reporter-pulumi-diff`](plugins/reporter-pulumi-diff)), which maps
+  `pulumi preview --json` output into a `pulumi-diff` report, and
+  `@orion/plugin-viewer-pulumi-diff`
+  ([`plugins/viewer-pulumi-diff`](plugins/viewer-pulumi-diff)), which renders
+  one, framework-free.
 
 Both hosts load plugins by dynamic import at runtime and have no build-time
 dependency on any of them. Plugin packages resolve from the working directory
@@ -160,6 +172,23 @@ plugin that asked for it.
 **The viewer has no upload endpoint, and must not grow one.** A dropped report
 is parsed in the browser and never sent anywhere. That is what makes the app
 stateless per requirement 7, and it leaves no upload surface at all.
+
+**A boolean plugin option is named for its off-state.** On argv a boolean is
+presence only — `--flag`, never `--flag false`; the word form (`true`/`false`,
+`1`/`0`, …) is the *environment* form, and a host that was not given a boolean
+at all supplies `false` for it. So an option that should default to on could
+never be turned off from the command line. Hence
+`@orion/plugin-reporter-pulumi-diff`'s `--omit-values` rather than a `--values`
+that defaults to true.
+
+**One preview digest per `pulumi-diff` report, and one resource per URN.** A
+sharded test run merges, but two preview files are two stacks, so the reporter
+takes exactly one input and points at `reporter-composite` for the rest. Within
+one digest the opposite folding applies: pulumi emits a replacement as up to
+three steps for the same URN (`create-replacement`, `replace`,
+`delete-replaced`), and they collapse into one `replace` resource — without
+that, a replaced resource appears three times and the totals say three things
+changed when one did.
 
 **The viewer's `orion-viewer` flags use `parseArgs` directly**, not the CLI's
 `parseFlags`. Its flag set is fixed before any plugin loads, so there is no
@@ -245,6 +274,14 @@ why argv wins for free: it is already in `values` by then.
   paths — do not "fix" them. The exception is
   `plugins/reporter-vitest/test/fixtures/`, which is JSON *data*; `real-run.json`
   is captured from an actual vitest run and its README says how to recapture it.
+  `plugins/reporter-pulumi-diff/test/fixtures/` is data too, hand-written rather
+  than captured so no real account id or credential is committed — its README
+  says what to strip from a captured one.
+- **A secret must never reach a stored report.** A report outlives its job and
+  is readable by anyone who can reach the storage backend, so the pulumi
+  reporter redacts pulumi's secret signature wherever it appears in a value, at
+  any depth, and never carries the stack `config` block at all. A new reporter
+  that reads tool output containing credentials owes the same treatment.
 - **Report metadata is collected by the CLI, not by the reporter.**
   `orion generate` shells out to `git`, reads the CI environment and attaches the
   result at [`src/metadata/`](packages/cli/src/metadata) after `generate`
@@ -266,9 +303,9 @@ why argv wins for free: it is already in `values` by then.
 ## Not built yet
 
 All three roles now have a working implementation and the pipeline runs end to
-end (`vitest --reporter=json` → report → stored → rendered in the browser). What
-is still missing: the Pulumi diff reporter, which is the MVP target in
-`REQUIREMENTS.md`; stdin input for `generate`, which errors when given no
-positional arguments though requirement 2 calls for piped input; and any
-authentication anywhere in the viewer. A report of a kind no viewer plugin
-claims still reaches the empty state, by design.
+end for both report kinds (`pulumi preview --json` or `vitest --reporter=json` →
+report → stored → rendered in the browser), which meets the MVP target in
+`REQUIREMENTS.md`. What is still missing: stdin input for `generate`, which
+errors when given no positional arguments though requirement 2 calls for piped
+input; and any authentication anywhere in the viewer. A report of a kind no
+viewer plugin claims still reaches the empty state, by design.

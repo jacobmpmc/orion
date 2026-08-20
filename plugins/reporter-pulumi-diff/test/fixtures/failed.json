@@ -1,0 +1,17 @@
+{
+  "steps": [
+    {
+      "op": "same",
+      "urn": "urn:pulumi:prod::infra::pulumi:pulumi:Stack::infra-prod",
+      "oldState": { "type": "pulumi:pulumi:Stack" }
+    }
+  ],
+  "diagnostics": [
+    {
+      "urn": "urn:pulumi:prod::infra::aws:s3/bucket:Bucket::assets",
+      "message": "no credentials found for provider aws",
+      "severity": "error"
+    }
+  ],
+  "duration": 1
+}

@@ -1,0 +1,17 @@
+{
+  "steps": [
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::infra::pulumi:pulumi:Stack::infra-dev",
+      "oldState": { "type": "pulumi:pulumi:Stack" }
+    },
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::infra::aws:ec2/vpc:Vpc::main",
+      "oldState": { "type": "aws:ec2/vpc:Vpc", "inputs": { "cidrBlock": "10.0.0.0/16" } }
+    }
+  ],
+  "diagnostics": [],
+  "duration": 3,
+  "changeSummary": { "same": 2 }
+}

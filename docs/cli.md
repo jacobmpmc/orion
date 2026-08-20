@@ -296,6 +296,32 @@ and the id in the first line is what the link uses. See
 [`plugins/reporter-vitest`](../plugins/reporter-vitest) for its options, and
 [`playground/README.md`](../playground/README.md) to run both halves.
 
+### Reporting a Pulumi preview
+
+The same two steps, with `@orion/plugin-reporter-pulumi-diff` reading the digest
+`pulumi preview --json` writes:
+
+```sh
+pulumi preview --json --stack prod > preview.json
+
+pnpm exec orion generate \
+  --reporter @orion/plugin-reporter-pulumi-diff \
+  --storage @orion/plugin-storage-filesystem \
+  --storage-path ./reports \
+  preview.json
+```
+
+One digest per report: a preview covers one stack, so a second positional is an
+error rather than a merge — generate one per stack and combine them with the
+composite reporter below.
+
+The report carries each changed property's path and its before and after value,
+with anything Pulumi marked secret replaced by a sentinel and the stack's
+`config` block left out entirely. `--omit-values` keeps only the paths, and
+`--max-value-length` shortens long ones; `--same` keeps unchanged resources,
+which are counted in the totals either way. See
+[`plugins/reporter-pulumi-diff`](../plugins/reporter-pulumi-diff) for the rest.
+
 ### Compiling several reports into one
 
 A job that produced more than one report can publish them as a single artefact,
