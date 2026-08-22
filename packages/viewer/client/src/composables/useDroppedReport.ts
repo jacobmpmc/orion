@@ -9,7 +9,7 @@ export interface UseDroppedReport {
    * sent to the server -- that is what lets the viewer stay stateless and lets
    * someone inspect a report the server has no connection to.
    */
-  readonly report: ComputedRef<Report | undefined>;
+  readonly reportFile: ComputedRef<DroppedReportFile | undefined>;
   readonly error: ComputedRef<string | undefined>;
   /** True while a file is held over the drop target, for styling it. */
   readonly dragging: ComputedRef<boolean>;
@@ -21,6 +21,15 @@ export interface UseDroppedReport {
   };
   /** For a file picked through `<input type="file">` rather than dropped. */
   readonly accept: (file: File | undefined) => Promise<void>;
+  /**
+   * Close any dropped report.
+   */
+  readonly close: () => void;
+}
+
+export interface DroppedReportFile {
+  name: string;
+  report: Report;
 }
 
 /**
@@ -28,13 +37,13 @@ export interface UseDroppedReport {
  * a dropped report belongs to the view the user dropped it on.
  */
 export function useDroppedReport(): UseDroppedReport {
-  const report = shallowRef<Report | undefined>(undefined);
+  const droppedFile = shallowRef<DroppedReportFile | undefined>(undefined);
   const error = shallowRef<string | undefined>(undefined);
   const dragging = shallowRef(false);
 
   async function accept(file: File | undefined): Promise<void> {
     error.value = undefined;
-    report.value = undefined;
+    droppedFile.value = undefined;
     if (file === undefined) return;
 
     let parsed: unknown;
@@ -50,7 +59,10 @@ export function useDroppedReport(): UseDroppedReport {
       return;
     }
 
-    report.value = parsed;
+    droppedFile.value = {
+      name: file.name,
+      report: parsed,
+    };
   }
 
   const handlers = {
@@ -69,11 +81,17 @@ export function useDroppedReport(): UseDroppedReport {
     },
   };
 
+  function close() {
+    droppedFile.value = undefined;
+    error.value = undefined;
+  }
+
   return {
-    report: computed(() => report.value),
+    reportFile: computed(() => droppedFile.value),
     error: computed(() => error.value),
     dragging: computed(() => dragging.value),
     handlers,
     accept,
+    close,
   };
 }

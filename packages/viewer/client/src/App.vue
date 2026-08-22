@@ -14,15 +14,13 @@ void useManifest().load();
 
 <template>
   <header>
-    <a :href="base"><h1>Orion</h1></a>
+    <a :href="base">
+      <h1>Orion</h1>
+    </a>
   </header>
   <main>
-    <ReportView
-      v-if="route.name === 'report'"
-      :key="`${route.connection}/${route.id}`"
-      :connection="route.connection"
-      :id="route.id"
-    />
+    <ReportView v-if="route.name === 'report'" :key="`${route.connection}/${route.id}`" :connection="route.connection"
+      :id="route.id" />
     <NotFoundView v-else-if="route.name === 'notFound'" />
     <HomeView v-else />
   </main>
@@ -49,6 +47,9 @@ void useManifest().load();
   --warn: #9a6700;
   --danger: #cf222e;
   color-scheme: light dark;
+
+
+  scrollbar-gutter: stable;
 }
 
 @media (prefers-color-scheme: dark) {
