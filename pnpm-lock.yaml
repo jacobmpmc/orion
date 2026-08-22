@@ -156,6 +156,15 @@ importers:
       '@orion/plugin-storage-filesystem':
         specifier: workspace:*
         version: link:../../plugins/storage-filesystem
+      '@orion/plugin-viewer-composite':
+        specifier: workspace:*
+        version: link:../../plugins/viewer-composite
+      '@orion/plugin-viewer-pulumi-diff':
+        specifier: workspace:*
+        version: link:../../plugins/viewer-pulumi-diff
+      '@orion/plugin-viewer-test-results':
+        specifier: workspace:*
+        version: link:../../plugins/viewer-test-results
       '@types/node':
         specifier: 'catalog:'
         version: 22.20.1

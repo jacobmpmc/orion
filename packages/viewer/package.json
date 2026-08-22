@@ -18,7 +18,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc --build",
     "build:client": "vite build",
@@ -38,6 +40,9 @@
   },
   "devDependencies": {
     "@orion/plugin-storage-filesystem": "workspace:*",
+    "@orion/plugin-viewer-test-results": "workspace:*",
+    "@orion/plugin-viewer-composite": "workspace:*",
+    "@orion/plugin-viewer-pulumi-diff": "workspace:*",
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "typescript": "catalog:",
