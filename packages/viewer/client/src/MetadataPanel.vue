@@ -74,7 +74,7 @@ function isHttpUrl(value: string | undefined): value is string {
         <dt>Commit</dt>
         <dd>
           <code :title="git.commit">{{ shortCommit }}</code>
-          <span v-if="git.subject"> {{ git.subject }}</span>
+          <span v-if="git.subject">{{ git.subject }}</span>
           <span v-if="git.dirty" class="dirty">uncommitted changes</span>
         </dd>
 
@@ -159,34 +159,45 @@ function isHttpUrl(value: string | undefined): value is string {
   padding: 0.5rem 0.75rem;
   font-size: 0.9rem;
 }
+
 summary {
   cursor: pointer;
   color: var(--muted);
 }
+
 dl {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 0.25rem 1rem;
   margin: 0.75rem 0 0;
 }
+
 dt {
   color: var(--muted);
 }
+
 dd {
   margin: 0;
   /* Remote URLs and commit subjects are long and must not widen the page. */
   overflow-wrap: anywhere;
 }
-dd span + span::before {
+
+dd :nth-child(n+2)::before {
   content: " · ";
   color: var(--muted);
 }
+
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.1em 0.3em;
 }
+
 .dirty {
   color: var(--warn);
 }
+
 .hint {
   color: var(--muted);
   margin: 0.75rem 0 0;
