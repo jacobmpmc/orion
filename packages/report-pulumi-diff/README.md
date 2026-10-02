@@ -57,6 +57,11 @@ reach the storage backend. A value pulumi marked secret is replaced with the
 knowing a secret changed is a large part of why diffs get reviewed — but its
 plaintext is not written down. `isSecretValue` is how a viewer spots one.
 
+`UNKNOWN` stands in for a value the preview could not compute — one built
+from another resource's output while that resource is itself changing. Pulumi
+writes a placeholder UUID there, which would otherwise read as a real value.
+`isUnknownValue` is how a viewer spots one.
+
 `Truncated` is the same idea for size rather than sensitivity: a property
 holding a rendered template keeps its head and records how much was dropped.
 

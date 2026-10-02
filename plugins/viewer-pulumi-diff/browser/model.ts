@@ -1,4 +1,4 @@
-import { isSecretValue, isTruncatedValue, PULUMI_DIFF_VERSION, isPulumiDiff } from "@orion/report-pulumi-diff";
+import { isSecretValue, isTruncatedValue, isUnknownValue, PULUMI_DIFF_VERSION, isPulumiDiff } from "@orion/report-pulumi-diff";
 import type {
   PropertyChange,
   PropertyValue,
@@ -141,12 +141,14 @@ export function matches(resource: ResourceChange, query: string, changedOnly: bo
  * A property value for display.
  *
  * A redacted secret says so rather than showing an object with a signature in
- * it, and a truncated string admits what it dropped -- a reader who cannot tell
+ * it, a value the preview could not compute says when it will be known, and a
+ * truncated string admits what it dropped -- a reader who cannot tell
  * a shortened value from a real one will make the wrong call about the diff.
  */
 export function formatValue(value: PropertyValue | undefined): string {
   if (value === undefined) return "—";
   if (isSecretValue(value)) return "(secret)";
+  if (isUnknownValue(value)) return "(known after apply)";
   if (isTruncatedValue(value)) return `${value.text}… (+${value.omitted} more characters)`;
   if (value === null) return "null";
   if (typeof value === "string") return value;
@@ -160,9 +162,10 @@ export function formatValue(value: PropertyValue | undefined): string {
   }
 }
 
-/** Keeps the two sentinels legible inside a nested value. */
+/** Keeps the sentinels legible inside a nested value. */
 function replacer(_key: string, value: unknown): unknown {
   if (isSecretValue(value)) return "(secret)";
+  if (isUnknownValue(value)) return "(known after apply)";
   if (isTruncatedValue(value)) return `${value.text}… (+${value.omitted} more characters)`;
   return value;
 }

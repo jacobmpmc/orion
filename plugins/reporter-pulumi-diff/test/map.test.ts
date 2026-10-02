@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSecretValue, isTruncatedValue, SECRET } from "@orion/report-pulumi-diff";
+import { isSecretValue, isTruncatedValue, isUnknownValue, SECRET, UNKNOWN } from "@orion/report-pulumi-diff";
 import type { PropertyChange, ResourceChange } from "@orion/report-pulumi-diff";
 import {
   foldKind,
@@ -157,6 +157,11 @@ describe("valueAt", () => {
     expect(valueAt(undefined, "acl")).toBeUndefined();
   });
 
+  it("reads a path below an unknown value as unknown, not absent", () => {
+    const state = { inputs: { policy: "04da6b54-80e4-46f7-96ec-b56ff0331ba9" } };
+    expect(valueAt(state, "policy.statement[0]")).toBe("04da6b54-80e4-46f7-96ec-b56ff0331ba9");
+  });
+
   it("stops at a secret rather than reaching its plaintext", () => {
     expect(valueAt({ inputs: { password: secret } }, "password.plaintext")).toBeUndefined();
   });
@@ -193,6 +198,28 @@ describe("sanitize", () => {
       value: "public",
     };
     expect(isSecretValue(sanitize(output, options))).toBe(false);
+  });
+
+  it("marks a value the preview could not compute as unknown", () => {
+    expect(sanitize("04da6b54-80e4-46f7-96ec-b56ff0331ba9", options)).toEqual(UNKNOWN);
+  });
+
+  it("marks an unknown nested inside a value", () => {
+    const clean = sanitize({ arns: ["arn:a", "04da6b54-80e4-46f7-96ec-b56ff0331ba9"] }, options) as {
+      arns: unknown[];
+    };
+    expect(clean.arns[0]).toBe("arn:a");
+    expect(isUnknownValue(clean.arns[1])).toBe(true);
+  });
+
+  it("marks an output value with no value as unknown", () => {
+    const output = { "4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4" };
+    expect(sanitize(output, options)).toEqual(UNKNOWN);
+  });
+
+  it("keeps an unknown secret a secret", () => {
+    const output = { "4dabf18193072939515e22adb298388d": "d0e6a833031e9bbcd3f4e8bde6ca49a4", secret: true };
+    expect(sanitize(output, options)).toEqual(SECRET);
   });
 
   it("truncates an over-long string and says how much it dropped", () => {

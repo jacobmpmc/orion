@@ -85,7 +85,8 @@ Three states are told apart deliberately, because collapsing them would mislead:
 | It recorded one and nothing differed | "No properties differ" |
 | Unchanged resources counted but not listed | A note saying how many, and that `--same` includes them |
 
-A redacted secret renders as `(secret)` and a truncated value admits what it
+A redacted secret renders as `(secret)`, a value the preview could not compute
+as `(known after apply)`, and a truncated value admits what it
 dropped — a reader who cannot tell a shortened value from a real one will make
 the wrong call about the diff.
 

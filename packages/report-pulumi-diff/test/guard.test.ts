@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   isPulumiDiff,
   isSecretValue,
+  isUnknownValue,
   isTruncatedValue,
   PULUMI_DIFF_KIND,
   PULUMI_DIFF_VERSION,
   RESOURCE_OPS,
   SECRET,
+  UNKNOWN,
 } from "../src/index.js";
 import type { DiffTotals, PulumiDiffData, ResourceOp } from "../src/index.js";
 
@@ -222,6 +224,20 @@ describe("isSecretValue", () => {
 
   it.each([null, undefined, "secret", 0, {}, { orionSecret: false }])("rejects %p", (value) => {
     expect(isSecretValue(value)).toBe(false);
+  });
+});
+
+describe("isUnknownValue", () => {
+  it("recognises the sentinel", () => {
+    expect(isUnknownValue(UNKNOWN)).toBe(true);
+  });
+
+  it("survives a round trip through JSON, which is how a viewer sees it", () => {
+    expect(isUnknownValue(JSON.parse(JSON.stringify(UNKNOWN)))).toBe(true);
+  });
+
+  it.each([null, undefined, "unknown", 0, {}, { orionUnknown: false }, SECRET])("rejects %p", (value) => {
+    expect(isUnknownValue(value)).toBe(false);
   });
 });
 

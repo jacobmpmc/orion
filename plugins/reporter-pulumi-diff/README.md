@@ -49,6 +49,8 @@ reach the storage backend, so:
   inside one. The property still shows up in the diff; its plaintext does not.
 - The digest's `config` block is not read at all. It routinely holds secrets and
   is not what a diff is reviewed for.
+- Pulumi's placeholder for a value not known until apply (a fixed UUID) is
+  replaced by the `UNKNOWN` sentinel, so it does not read as the new value.
 - A value longer than `--max-value-length` keeps its head and records how much
   was dropped, so a rendered template does not become the whole report.
 

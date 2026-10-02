@@ -70,7 +70,7 @@ export type PropertyChangeKind = "add" | "update" | "delete";
  * A property's value, as JSON.
  *
  * What a producer puts here has already been through redaction and truncation,
- * so `SECRET` and `Truncated` are both ordinary objects as far as this type is
+ * so `SECRET`, `UNKNOWN` and `Truncated` are all ordinary objects as far as this type is
  * concerned -- a viewer recognises them with the guards below.
  */
 export type PropertyValue =
@@ -95,6 +95,22 @@ export const SECRET = { orionSecret: true } as const;
 export function isSecretValue(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
   return (value as Record<string, unknown>)["orionSecret"] === true;
+}
+
+/**
+ * What a value the preview could not compute becomes.
+ *
+ * A property built from another resource's output is not known until apply
+ * when that resource is itself changing, and pulumi writes a placeholder in
+ * its place. Carried as-is the placeholder reads as a real value -- a state
+ * machine definition "changing to" a UUID -- so it is replaced with this.
+ */
+export const UNKNOWN = { orionUnknown: true } as const;
+
+/** True for the value `UNKNOWN` stands in for. */
+export function isUnknownValue(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  return (value as Record<string, unknown>)["orionUnknown"] === true;
 }
 
 /**

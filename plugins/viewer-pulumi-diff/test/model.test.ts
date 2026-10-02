@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PULUMI_DIFF_VERSION, SECRET } from "@orion/report-pulumi-diff";
+import { PULUMI_DIFF_VERSION, SECRET, UNKNOWN } from "@orion/report-pulumi-diff";
 import type { PropertyChange, PulumiDiffData, ResourceChange, ResourceOp } from "@orion/report-pulumi-diff";
 import {
   expansionFor,
@@ -174,6 +174,11 @@ describe("formatValue", () => {
 
   it("says a value is secret rather than showing its wrapper", () => {
     expect(formatValue(SECRET)).toBe("(secret)");
+  });
+
+  it("says when a value the preview could not compute will be known", () => {
+    expect(formatValue(UNKNOWN)).toBe("(known after apply)");
+    expect(formatValue({ arn: UNKNOWN })).toContain("(known after apply)");
   });
 
   it("admits what a truncated value dropped", () => {

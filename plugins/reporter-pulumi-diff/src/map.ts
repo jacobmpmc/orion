@@ -1,5 +1,5 @@
 import { relativeTo } from "@orion/plugin-toolkit";
-import { RESOURCE_OPS, SECRET } from "@orion/report-pulumi-diff";
+import { RESOURCE_OPS, SECRET, UNKNOWN } from "@orion/report-pulumi-diff";
 import type {
   Diagnostic,
   DiffTotals,
@@ -44,6 +44,12 @@ export interface MapOptions {
 const SIG_KEY = "4dabf18193072939515e22adb298388d";
 const SECRET_SIG = "1b47061264138c4ac30d75fd1eb44270";
 const OUTPUT_SIG = "d0e6a833031e9bbcd3f4e8bde6ca49a4";
+
+/**
+ * What pulumi writes for a value it cannot compute until apply -- a plain
+ * string, not a signature object, so it is recognised by exact match.
+ */
+const UNKNOWN_VALUE = "04da6b54-80e4-46f7-96ec-b56ff0331ba9";
 
 /**
  * How deep `sanitize` will walk.
@@ -217,6 +223,10 @@ function walk(bag: unknown, segments: readonly string[]): unknown {
       continue;
     }
 
+    // Below an unknown value everything is unknown too; reporting the path as
+    // absent would read as "removed".
+    if (current === UNKNOWN_VALUE) return current;
+
     // A secret's plaintext is under the sentinel, not beside it; stepping into
     // one would report the wrong value rather than the redacted one, so the
     // walk stops here and hands back the sentinel for `sanitize` to redact.
@@ -231,6 +241,15 @@ function walk(bag: unknown, segments: readonly string[]): unknown {
   return current;
 }
 
+/**
+ * True for an output value carrying no value: pulumi's other spelling of
+ * "not known until apply". Checked after `isSecretShape`, so an unknown secret
+ * stays a secret.
+ */
+function isUnknownOutput(value: Record<string, unknown>): boolean {
+  return value[SIG_KEY] === OUTPUT_SIG && !("value" in value);
+}
+
 /** True for an object carrying pulumi's secret signature, at any nesting. */
 function isSecretShape(value: Record<string, unknown>): boolean {
   if (value[SIG_KEY] === SECRET_SIG) return true;
@@ -241,9 +260,9 @@ function isSecretShape(value: Record<string, unknown>): boolean {
 /**
  * A value ready to be written into a report.
  *
- * Three things happen here, and all three are the reason values can be carried
- * at all: pulumi's secrets are replaced with the sentinel, over-long strings
- * lose their tail, and anything JSON cannot hold is dropped. Undefined comes
+ * Four things happen here, and all four are the reason values can be carried
+ * at all: pulumi's secrets are replaced with the sentinel, its placeholder for
+ * a value not yet computed becomes `UNKNOWN`, over-long strings lose their tail, and anything JSON cannot hold is dropped. Undefined comes
  * back for a value that vanishes entirely, which the caller renders as an
  * absent field rather than a null.
  */
@@ -253,6 +272,7 @@ export function sanitize(value: unknown, options: MapOptions, depth = 0): Proper
   const type = typeof value;
   if (type === "boolean") return value as boolean;
   if (type === "number") return Number.isFinite(value as number) ? (value as number) : undefined;
+  if (value === UNKNOWN_VALUE) return UNKNOWN;
   if (type === "string") return truncate(value as string, options.maxValueLength);
   if (type !== "object") return undefined;
 
@@ -268,6 +288,7 @@ export function sanitize(value: unknown, options: MapOptions, depth = 0): Proper
 
   const record = value as Record<string, unknown>;
   if (isSecretShape(record)) return SECRET;
+  if (isUnknownOutput(record)) return UNKNOWN;
 
   const result: Record<string, PropertyValue> = {};
   for (const [key, entry] of Object.entries(record)) {
