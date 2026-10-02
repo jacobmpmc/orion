@@ -289,6 +289,26 @@ describe("foldSteps", () => {
     expect(empty?.changes).toEqual([]);
   });
 
+  it("reads null as absent, which is how pulumi writes an empty field", () => {
+    const [resource] = foldSteps(
+      {
+        steps: [
+          {
+            op: "read",
+            urn: "urn:pulumi:prod::infra::a:b:C::one",
+            provider: null,
+            diffReasons: null,
+            oldState: { inputs: null, outputs: null },
+            newState: null,
+            detailedDiff: null,
+          },
+        ],
+      },
+      options,
+    );
+    expect(resource).toEqual({ urn: "urn:pulumi:prod::infra::a:b:C::one", type: "a:b:C", name: "one", op: "read" });
+  });
+
   it("omits an add's before and a delete's after", () => {
     const resource = foldSteps(
       {
@@ -390,6 +410,22 @@ describe("mapDigest", () => {
 
   it("lists unchanged resources when asked", () => {
     expect(mapDigest(run, { ...options, same: true }).resources).toHaveLength(2);
+  });
+
+  it("reads null diagnostics and duration as absent", () => {
+    const data = mapDigest(
+      {
+        source: "/repo/preview.json",
+        digest: {
+          steps: [],
+          diagnostics: [{ message: "careful", severity: null, urn: null }],
+          duration: null,
+        },
+      },
+      options,
+    );
+    expect(data.diagnostics).toEqual([{ severity: "info", message: "careful" }]);
+    expect(data.durationMs).toBeUndefined();
   });
 
   it("drops a blank diagnostic and trims the rest", () => {

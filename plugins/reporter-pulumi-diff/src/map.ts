@@ -116,7 +116,7 @@ const OP_RANK: Readonly<Record<ResourceOp, number>> = {
 };
 
 /** Pulumi's diff kinds, folded to the report's three plus a replaces flag. */
-export function foldKind(kind: string | undefined): {
+export function foldKind(kind: string | null | undefined): {
   kind: PropertyChangeKind;
   replaces: boolean;
 } {
@@ -192,8 +192,8 @@ export function pathSegments(path: string): string[] {
  * asked for, which is what the reviewer wrote and will recognise, but a
  * property the provider computes only exists on the output side.
  */
-export function valueAt(state: StepState | undefined, path: string): unknown {
-  if (state === undefined) return undefined;
+export function valueAt(state: StepState | null | undefined, path: string): unknown {
+  if (state == null) return undefined;
 
   const segments = pathSegments(path);
   if (segments.length === 0) return undefined;
@@ -285,7 +285,7 @@ function truncate(text: string, limit: number): PropertyValue {
 /** The property changes for one step, in the order pulumi listed them. */
 function changesFor(step: PreviewStep, options: MapOptions): readonly PropertyChange[] | undefined {
   const detailed = step.detailedDiff;
-  if (detailed === undefined) return undefined;
+  if (detailed == null) return undefined;
 
   return Object.entries(detailed).map(([path, entry]) => toChange(path, entry, step, options));
 }
@@ -333,7 +333,7 @@ export function foldSteps(digest: PreviewDigest, options: MapOptions): ResourceC
     const changes = changesFor(step, options);
     const parsed = parseUrn(step.urn);
     const provider = providerUrn(step.provider);
-    const reasons = step.diffReasons;
+    const reasons = step.diffReasons ?? undefined;
 
     if (existing === undefined) {
       byUrn.set(step.urn, {
@@ -399,7 +399,7 @@ function toDiagnostics(digest: PreviewDigest): Diagnostic[] {
       {
         severity,
         message,
-        ...(entry.urn !== undefined && entry.urn !== "" ? { urn: entry.urn } : {}),
+        ...(entry.urn != null && entry.urn !== "" ? { urn: entry.urn } : {}),
       },
     ];
   });

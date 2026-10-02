@@ -33,14 +33,20 @@ export type StepOp =
   | "import"
   | "import-replacement";
 
-/** A resource's state, before or after. Only the property bags are read. */
+/**
+ * A resource's state, before or after. Only the property bags are read.
+ *
+ * Every optional field here and below also admits `null`: pulumi is written in
+ * Go, which serialises an empty map, slice or pointer as `null` rather than
+ * leaving the key out, so "absent" arrives in both forms.
+ */
 export interface StepState {
-  readonly urn?: string;
-  readonly type?: string;
+  readonly urn?: string | null;
+  readonly type?: string | null;
   /** What the program asked for. The side of a diff a reviewer wrote. */
-  readonly inputs?: Record<string, unknown>;
+  readonly inputs?: Record<string, unknown> | null;
   /** What the provider reported. Consulted when `inputs` lacks the property. */
-  readonly outputs?: Record<string, unknown>;
+  readonly outputs?: Record<string, unknown> | null;
 }
 
 /** One property's entry in `detailedDiff`. */
@@ -51,37 +57,37 @@ export interface DiffEntry {
    * enum when it serialises, so the commonest kind is the one that goes
    * missing.
    */
-  readonly kind?: string;
-  readonly inputDiff?: boolean;
+  readonly kind?: string | null;
+  readonly inputDiff?: boolean | null;
 }
 
 export interface PreviewStep {
   readonly op: string;
   readonly urn: string;
   /** Provider reference: a URN with `::<id>` appended. */
-  readonly provider?: string;
-  readonly oldState?: StepState;
-  readonly newState?: StepState;
+  readonly provider?: string | null;
+  readonly oldState?: StepState | null;
+  readonly newState?: StepState | null;
   /** Top-level property names that differ. Pulumi's coarse answer. */
-  readonly diffReasons?: readonly string[];
+  readonly diffReasons?: readonly string[] | null;
   /** Property path to how it changed. Pulumi's fine answer; not always present. */
-  readonly detailedDiff?: Record<string, DiffEntry>;
+  readonly detailedDiff?: Record<string, DiffEntry> | null;
 }
 
 export interface PreviewDiagnostic {
-  readonly urn?: string;
-  readonly message?: string;
-  readonly severity?: string;
+  readonly urn?: string | null;
+  readonly message?: string | null;
+  readonly severity?: string | null;
   /** A prefix pulumi prints before the message, e.g. the resource's label. */
-  readonly prefix?: string;
+  readonly prefix?: string | null;
 }
 
 export interface PreviewDigest {
   readonly steps: readonly PreviewStep[];
-  readonly diagnostics?: readonly PreviewDiagnostic[];
+  readonly diagnostics?: readonly PreviewDiagnostic[] | null;
   /** Seconds, despite the name, and 0 for a preview that finished instantly. */
-  readonly duration?: number;
-  readonly changeSummary?: Record<string, number>;
+  readonly duration?: number | null;
+  readonly changeSummary?: Record<string, number> | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -148,8 +154,8 @@ export function parseUrn(urn: string): ParsedUrn {
  * A reference is `<provider urn>::<id>`, and the id changes on every run that
  * touches the provider -- rendering it would show a diff where none is meant.
  */
-export function providerUrn(reference: string | undefined): string | undefined {
-  if (reference === undefined || reference === "") return undefined;
+export function providerUrn(reference: string | null | undefined): string | undefined {
+  if (reference == null || reference === "") return undefined;
   const cut = reference.lastIndexOf("::");
   return cut > 0 ? reference.slice(0, cut) : reference;
 }
