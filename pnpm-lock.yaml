@@ -35,6 +35,27 @@ importers:
       '@orion/cli':
         specifier: workspace:*
         version: link:packages/cli
+      '@orion/plugin-reporter-composite':
+        specifier: workspace:*
+        version: link:plugins/reporter-composite
+      '@orion/plugin-reporter-pulumi-diff':
+        specifier: workspace:*
+        version: link:plugins/reporter-pulumi-diff
+      '@orion/plugin-reporter-vitest':
+        specifier: workspace:*
+        version: link:plugins/reporter-vitest
+      '@orion/plugin-storage-filesystem':
+        specifier: workspace:*
+        version: link:plugins/storage-filesystem
+      '@orion/plugin-viewer-composite':
+        specifier: workspace:*
+        version: link:plugins/viewer-composite
+      '@orion/plugin-viewer-pulumi-diff':
+        specifier: workspace:*
+        version: link:plugins/viewer-pulumi-diff
+      '@orion/plugin-viewer-test-results':
+        specifier: workspace:*
+        version: link:plugins/viewer-test-results
       '@orion/viewer':
         specifier: workspace:*
         version: link:packages/viewer

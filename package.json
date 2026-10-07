@@ -17,6 +17,13 @@
   },
   "devDependencies": {
     "@orion/cli": "workspace:*",
+    "@orion/plugin-reporter-composite": "workspace:*",
+    "@orion/plugin-reporter-pulumi-diff": "workspace:*",
+    "@orion/plugin-reporter-vitest": "workspace:*",
+    "@orion/plugin-storage-filesystem": "workspace:*",
+    "@orion/plugin-viewer-composite": "workspace:*",
+    "@orion/plugin-viewer-pulumi-diff": "workspace:*",
+    "@orion/plugin-viewer-test-results": "workspace:*",
     "@orion/viewer": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"

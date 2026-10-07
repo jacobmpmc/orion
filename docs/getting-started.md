@@ -55,6 +55,10 @@ pnpm --filter @orion/cli test:types
 `@orion/cli`. **The CLI must be built before it will run** — the bin points at
 `dist/`, not the sources.
 
+The root `package.json` also lists every plugin under `devDependencies`. That is
+for local development only: it puts them in the root `node_modules`, where both
+binaries can resolve them relative to their own location.
+
 ```sh
 pnpm build
 pnpm exec orion help
