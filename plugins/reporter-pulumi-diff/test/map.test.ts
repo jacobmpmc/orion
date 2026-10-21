@@ -366,6 +366,65 @@ describe("foldSteps", () => {
     });
   });
 
+  it("lists a create's inputs when it carried no detailed diff", () => {
+    const [resource] = foldSteps(
+      {
+        steps: [
+          {
+            op: "create",
+            urn: "urn:pulumi:prod::infra::a:b:C::one",
+            newState: {
+              inputs: {
+                __defaults: ["name"],
+                name: "one-abc123",
+                "odd.key": 1,
+                tags: { env: "prod" },
+                token: secret,
+              },
+            },
+          },
+        ],
+      },
+      options,
+    );
+
+    expect(resource?.changes).toEqual([
+      { path: "name", kind: "add", replaces: false, after: "one-abc123" },
+      { path: '["odd.key"]', kind: "add", replaces: false, after: 1 },
+      { path: "tags", kind: "add", replaces: false, after: { env: "prod" } },
+      { path: "token", kind: "add", replaces: false, after: SECRET },
+    ]);
+  });
+
+  it("lists a create's input paths without values when asked not to", () => {
+    const [resource] = foldSteps(
+      {
+        steps: [
+          { op: "create", urn: "urn:pulumi:prod::infra::a:b:C::one", newState: { inputs: { name: "x" } } },
+        ],
+      },
+      { ...options, values: false },
+    );
+    expect(resource?.changes).toEqual([{ path: "name", kind: "add", replaces: false }]);
+  });
+
+  it("prefers a create's own detailed diff to its inputs", () => {
+    const [resource] = foldSteps(
+      {
+        steps: [
+          {
+            op: "create",
+            urn: "urn:pulumi:prod::infra::a:b:C::one",
+            newState: { inputs: { name: "x", size: 2 } },
+            detailedDiff: { size: { kind: "ADD" } },
+          },
+        ],
+      },
+      options,
+    );
+    expect(resource?.changes).toEqual([{ path: "size", kind: "add", replaces: false, after: 2 }]);
+  });
+
   it("carries paths without values when asked not to", () => {
     const resource = foldSteps(digest, { ...options, values: false })[0];
     expect(changeAt(resource, "ami")).toEqual({ path: "ami", kind: "update", replaces: true });

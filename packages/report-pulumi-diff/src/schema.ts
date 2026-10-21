@@ -181,6 +181,9 @@ export interface ResourceChange {
    * The properties that differ. Absent when the preview carried no detailed
    * diff at all -- which is not the same as an empty list, meaning it carried
    * one and nothing in it differed.
+   *
+   * A create rarely carries a detailed diff, so a producer may list the inputs
+   * it will be created with instead, each as an `add`.
    */
   readonly changes?: readonly PropertyChange[];
 }

@@ -73,6 +73,11 @@ Grouping by URN is not tidying: without it a replaced resource appears three
 times and the totals say three things changed when one did. The detailed diff
 rides on one step of the chain, and that is the one kept.
 
+A `create` usually has no detailed diff at all — there is nothing to diff
+against. Its top-level inputs become one `add` each instead, so a new resource
+shows what it will be created with. Pulumi's own `__`-prefixed keys
+(`__defaults`) are skipped.
+
 Property kinds fold the same way: `ADD_REPLACE` is an `add` with
 `replaces: true`, not a fourth kind. A missing kind reads as `update` — Pulumi
 omits the enum's zero value, so the commonest change is the one that goes

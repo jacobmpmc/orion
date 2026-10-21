@@ -306,9 +306,39 @@ function truncate(text: string, limit: number): PropertyValue {
 /** The property changes for one step, in the order pulumi listed them. */
 function changesFor(step: PreviewStep, options: MapOptions): readonly PropertyChange[] | undefined {
   const detailed = step.detailedDiff;
-  if (detailed == null) return undefined;
+  if (detailed == null) {
+    return step.op === "create" ? createdInputs(step, options) : undefined;
+  }
 
   return Object.entries(detailed).map(([path, entry]) => toChange(path, entry, step, options));
+}
+
+/**
+ * A create's inputs, as one `add` per top-level property.
+ *
+ * Pulumi computes no detailed diff for a create -- there is nothing to diff
+ * against -- so without this a new resource shows no properties at all, when
+ * what it will be created with is exactly what a reviewer wants to read. Keys
+ * starting `__` are pulumi's own bookkeeping (`__defaults`), not anything the
+ * program set. Undefined when there are no inputs, so it still reads as "the
+ * preview did not say".
+ */
+function createdInputs(step: PreviewStep, options: MapOptions): readonly PropertyChange[] | undefined {
+  const inputs = step.newState?.inputs;
+  if (inputs == null) return undefined;
+
+  const keys = Object.keys(inputs).filter((key) => !key.startsWith("__"));
+  if (keys.length === 0) return undefined;
+
+  return keys.map((key) => toChange(topLevelPath(key), { kind: "ADD" }, step, options));
+}
+
+/**
+ * A top-level key as a detailed-diff path: bare when it is an identifier,
+ * bracketed and quoted otherwise -- the form `pathSegments` reads back.
+ */
+function topLevelPath(key: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(key) ? key : `[${JSON.stringify(key)}]`;
 }
 
 function toChange(
